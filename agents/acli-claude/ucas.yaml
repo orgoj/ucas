@@ -1,0 +1,17 @@
+# Claude ACLI definition
+
+name: acli-claude
+executable: claude
+
+arg_mapping:
+  prompt_file: --system
+  skills_dir: --tools
+  model_flag: --model
+
+model_mapping:
+  gpt-4: sonnet-3.5
+  gpt-4-turbo: sonnet-4
+  gpt-5.2-pro: opus-4.5
+  default: sonnet-3.5
+
+ignore_unknown: false

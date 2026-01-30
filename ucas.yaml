@@ -1,0 +1,8 @@
+# System defaults for UCAS
+
+allowed_acli:
+  - acli-claude
+  - acli-zai
+  - acli-echo
+
+default_acli: acli-echo

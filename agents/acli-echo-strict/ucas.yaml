@@ -1,0 +1,14 @@
+# Echo ACLI for testing (strict - no default)
+
+name: acli-echo-strict
+executable: echo
+
+arg_mapping:
+  prompt_file: "PROMPT:"
+  skills_dir: "SKILLS:"
+  model_flag: "MODEL:"
+
+model_mapping:
+  gpt-4: sonnet-3.5
+
+ignore_unknown: false

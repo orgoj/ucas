@@ -1,0 +1,13 @@
+# Example team configuration
+
+name: example-team
+description: Example team with multiple agents
+sleep_seconds: 1
+
+members:
+  agent1:
+    agent: basic-chat
+  agent2:
+    agent: basic-chat
+    mods:
+      - git-mod

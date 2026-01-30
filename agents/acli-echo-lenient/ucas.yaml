@@ -1,0 +1,14 @@
+# Echo ACLI for testing (lenient - ignore unknown)
+
+name: acli-echo-lenient
+executable: echo
+
+arg_mapping:
+  prompt_file: "PROMPT:"
+  skills_dir: "SKILLS:"
+  model_flag: "MODEL:"
+
+model_mapping:
+  gpt-4: sonnet-3.5
+
+ignore_unknown: true

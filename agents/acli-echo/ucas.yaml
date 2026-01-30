@@ -1,0 +1,15 @@
+# Echo ACLI for testing
+
+name: acli-echo
+executable: echo
+
+arg_mapping:
+  prompt_file: "PROMPT:"
+  skills_dir: "SKILLS:"
+  model_flag: "MODEL:"
+
+model_mapping:
+  gpt-4: sonnet-3.5
+  default: sonnet-3.5
+
+ignore_unknown: false

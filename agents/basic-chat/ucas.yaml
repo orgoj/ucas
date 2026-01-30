@@ -1,0 +1,4 @@
+# Basic chat agent
+
+name: basic-chat
+requested_model: gpt-4

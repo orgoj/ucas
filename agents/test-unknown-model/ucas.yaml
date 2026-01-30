@@ -1,0 +1,4 @@
+# Test agent with unknown model
+
+name: test-unknown-model
+requested_model: gpt-5-super-duper
