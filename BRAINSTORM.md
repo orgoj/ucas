@@ -1,154 +1,146 @@
 # UCAS: Technical Specification v1.0 (Master Edition)
 
-## 1. Filosofie a Role
+## 1. Philosophy and Role
 
-**UCAS** (Unified Configurable Agent Starter) je **inteligentní assembler** a **launcher**.
+**UCAS** (Universal CLI Agent System) is an **intelligent assembler** and **launcher**.
 
-* **Role:** Najít definice (Agent, Mod, ACLI), sloučit je podle priorit, sestavit exekuční příkaz a spustit ho v `tmux`.
-* **Princip:** Striktní oddělení Dat (Agent) od Nástroje (ACLI).
-* **Architektura:** Tři vrstvy (Project > User > System).
-
----
-
-## 2. Příkazová Řádka (CLI)
-
-Program se volá jako `ucas` s následující syntaxí:
-
-### Příkazy
-
-1. **Spuštění Agenta:**
-```bash
-ucas run [AGENT_NAME] +[MOD1] +[MOD2] ... [OPTIONS]
-# Příklad: ucas run php-master +git-mod +acli-claude --debug
-
-```
-
-
-2. **Spuštění Týmu:**
-```bash
-ucas run-team [TEAM_NAME] [OPTIONS]
-# Příklad: ucas run-team backend --dry-run
-
-```
-
-
-
-### Přepínače (Options)
-
-* `--dry-run`: **Simulace.** Provede celý proces hledání, mergování a generování promptu, ale **nespustí tmux**. Vypíše finální sestavený příkaz na stdout (pro kontrolu).
-* `--debug`: **Verbose mode.** Vypisuje detailní logiku "Sandwich Merge" (který soubor přebil který klíč, kde se našel jaký skill).
+*   **Role:** To find definitions (Agent, Mod, ACLI), merge them according to priority, build an execution command, and run it in `tmux`.
+*   **Principle:** Strict separation of Data (Agent) from the Tool (ACLI).
+*   **Architecture:** Three layers (Project > User > System).
 
 ---
 
-## 3. Adresářová Struktura (The Three-Layer Database)
+## 2. Command Line (CLI)
 
-UCAS vyhledává konfigurace v tomto pořadí priorit (od nejvyšší po nejnižší).
+The program is invoked as `ucas` with the following syntax:
 
-### 1. Vrstva: PROJEKT (Local Context)
+### Commands
 
-*Nejvyšší priorita. Specifické pro daný úkol.*
-**Cesta:** `./.ucas/` (v aktuálním adresáři)
+1.  **Run an Agent:**
+    ```bash
+    ucas run [AGENT_NAME] +[MOD1] +[MOD2] ... [OPTIONS]
+    # Example: ucas run php-master +git-mod +acli-claude --debug
+    ```
+
+2.  **Run a Team:**
+    ```bash
+    ucas run-team [TEAM_NAME] [OPTIONS]
+    # Example: ucas run-team backend --dry-run
+    ```
+
+### Switches (Options)
+
+*   `--dry-run`: **Simulation.** Performs the entire process of searching, merging, and generating the prompt, but **does not start tmux**. It prints the final assembled command to stdout (for verification).
+*   `--debug`: **Verbose mode.** Prints detailed logic of the "Sandwich Merge" (which file overrode which key, where each skill was found).
+
+---
+
+## 3. Directory Structure (The Three-Layer Database)
+
+UCAS searches for configurations in this priority order (from highest to lowest).
+
+### 1. Layer: PROJECT (Local Context)
+
+*Highest priority. Specific to the current task.*
+**Path:** `./.ucas/` (in the current directory)
 
 ```text
 ./.ucas/
 ├── ucas.yaml               # Project Base (Env, Defaults)
 ├── ucas-override.yaml      # Project Veto (Override ACLI)
-├── tmp/                    # (Auto) Generované prompty (karel.merged.md)
-├── mem/                    # (Auto) Paměť agentů
-├── teams/                  # Lokální týmy
-└── agents/                 # Lokální mody a agenti
-
+├── tmp/                    # (Auto) Generated prompts (karel.merged.md)
+├── mem/                    # (Auto) Agent memory
+├── teams/                  # Local teams
+└── agents/                 # Local mods and agents
 ```
 
-### 2. Vrstva: USER (Personal Config)
+### 2. Layer: USER (Personal Config)
 
-*Střední priorita. Osobní nastavení uživatele.*
-**Cesta:** `~/.ucas/`
+*Medium priority. User's personal settings.*
+**Path:** `~/.ucas/`
 
 ```text
 ~/.ucas/
 ├── ucas.yaml               # User Defaults
 ├── ucas-override.yaml      # User Veto
-├── teams/                  # Globální týmy
-└── agents/                 # Osobní knihovna
-
+├── teams/                  # Global teams
+└── agents/                 # Personal library
 ```
 
-### 3. Vrstva: SYSTEM / REPO (Factory Defaults)
+### 3. Layer: SYSTEM / REPO (Factory Defaults)
 
-*Nejnižší priorita. Distribuční základ.*
-**Cesta:** `/opt/ucas/` (nebo `$UCAS_HOME`)
+*Lowest priority. Distribution base.*
+**Path:** `/opt/ucas/` (or `$UCAS_HOME`)
 
 ```text
 $UCAS_HOME/
 ├── ucas.yaml               # System Defaults (allowed_acli, default_acli)
-├── ucas-override.yaml      # System Veto (zřídka)
-├── teams/                  # Ukázkové týmy
+├── ucas-override.yaml      # System Veto (rarely used)
+├── teams/                  # Example teams
 └── agents/                 # System Library
-    ├── acli-claude/        # ACLI pro Claude
-    ├── acli-zai/           # ACLI pro Z.AI
-    ├── basic-chat/         # Defaultní agenti
-    └── utils/              # Společné mody
-
+    ├── acli-claude/        # ACLI for Claude
+    ├── acli-zai/           # ACLI for Z.AI
+    ├── basic-chat/         # Default agents
+    └── utils/              # Common mods
 ```
 
 ---
 
-## 4. Entity a Definice
+## 4. Entities and Definitions
 
 ### I. AGENT (The Know-How)
 
-Čistá data. **Nemá executable.**
+Pure data. **Has no `executable`.**
 
-* **Obsah:** `PROMPT.md`, `skills/` (skripty), `ucas.yaml`.
-* **Příklad `ucas.yaml`:**
-```yaml
-default_acli: "acli-claude"   # Preference agenta (musí být v allowed_acli)
-```
+*   **Contents:** `PROMPT.md`, `skills/` (scripts), `ucas.yaml`.
+*   **Example `ucas.yaml`:**
+    ```yaml
+    default_acli: "acli-claude"   # Agent's preference (must be in allowed_acli)
+    ```
 
-*Poznámka: Modely řeší ACLI, ne agent. Agent říká CO chce dělat, ACLI řeší JAK.*
+*Note: Models are handled by the ACLI, not the agent. The Agent says WHAT it wants to do, the ACLI handles HOW.*
 
-* **Skills:** Každý agent může mít adresář `skills/` - všechny se agregují do PATH.
+*   **Skills:** Each agent can have a `skills/` directory - all are aggregated into the PATH.
 
 ### II. MOD (The Overlay)
 
-**Každý agent může být použit jako mod.** Strukturou shodný s agentem. Slouží k vrstvení schopností na jiného agenta.
+**Any agent can be used as a mod.** It has the same structure as an agent. Used to layer capabilities onto another agent.
 
 ### III. ACLI (The Runner)
 
-Abstrakce nástroje. **Pozná se podle přítomnosti `executable` klíče.**
+A tool abstraction. **Identified by the presence of the `executable` key.**
 
-* **Obsah:** `ucas.yaml` s executable, mapováním argumentů a mapováním modelů.
-* **Příklad `ucas.yaml`:**
-```yaml
-executable: "claude"     # Přítomnost tohoto klíče = ACLI
-arg_mapping:
-  prompt_file: "--system"
-  skills_dir: "--tools"
-  model_flag: "--model"
+*   **Contents:** `ucas.yaml` with an executable, argument mapping, and model mapping.
+*   **Example `ucas.yaml`:**
+    ```yaml
+    executable: "claude"     # The presence of this key = ACLI
+    arg_mapping:
+      prompt_file: "--system"
+      skills_dir: "--tools"
+      model_flag: "--model"
 
-model_mapping:
-  # Agent požaduje → ACLI dostane
-  "gpt-5.2-pro": "opus-4.5"
-  "codex": "opus-4.5"
-  "gpt-4": "sonnet-3.5"
-  "default": "sonnet-3.5"    # Fallback když není mapování
+    model_mapping:
+      # Agent requests → ACLI receives
+      "gpt-5.2-pro": "opus-4.5"
+      "codex": "opus-4.5"
+      "gpt-4": "sonnet-3.5"
+      "default": "sonnet-3.5"    # Fallback when no mapping exists
+    ```
+
+### Model Mapping - Logic
+
+UCAS translates the agent's model request to one supported by the selected ACLI:
+
+```
+1. Agent has: requested_model: "gpt-5.2-pro"
+2. Selected ACLI has: model_mapping
+3. UCAS translates: "gpt-5.2-pro" → "opus-4.5"
+4. Resulting command: claude --model opus-4.5 --system ...
 ```
 
-### Model Mapping - Logika
+### Example: A "Cheap" Claude ACLI
 
-UCAS přeloží požadavek agenta na model podporovaný vybraným ACLI:
-
-```
-1. Agent má: requested_model: "gpt-5.2-pro"
-2. Vybraný ACLI má: model_mapping
-3. UCAS přeloží: "gpt-5.2-pro" → "opus-4.5"
-4. Výsledný příkaz: claude --model opus-4.5 --system ...
-```
-
-### Příklad: Levný Claude ACLI
-
-Uživatel si vytvoří vlastní ACLI variantu pro úsporu nákladů:
+A user can create their own ACLI variant to save costs:
 
 ```yaml
 # ~/.ucas/agents/acli-claude-cheap/ucas.yaml
@@ -158,290 +150,285 @@ arg_mapping:
   model_flag: "--model"
 
 model_mapping:
-  # Všechno mapuj na Haiku = levné
+  # Map everything to Haiku = cheap
   "opus-4.5": "haiku-3.5"
   "sonnet-3.5": "haiku-3.5"
   "gpt-5.2-pro": "haiku-3.5"
   "default": "haiku-3.5"
 ```
 
-Pak stačí v projektu:
+Then in the project:
 ```yaml
 # ./.ucas/ucas.yaml
 allowed_acli: ["acli-claude-cheap"]
 ```
 
-A všichni agenti v tomto projektu pojedou na Haiku, bez ohledu na jejich `requested_model`.
+And all agents in this project will run on Haiku, regardless of their `requested_model`.
 
-*Poznámka: ACLI je jen agent s `executable` → lze ho definovat na libovolné vrstvě (system/user/project). Projekt si může předefinovat `acli-claude-cheap` po svém, aniž by ovlivnil ostatní projekty. Hledání: Project → User → System, první nalezený vyhrává.*
-
-
+*Note: An ACLI is just an agent with an `executable` → it can be defined at any layer (system/user/project). A project can redefine `acli-claude-cheap` for its own purposes without affecting other projects. Search order: Project → User → System, first one found wins.*
 
 ---
 
-## 5. Prioritní Logika (The Sandwich Merge)
+## 5. Priority Logic (The Sandwich Merge)
 
-UCAS načítá konfigurace a provádí `dict.update` (každý další přebíjí předchozí hodnoty).
+UCAS loads configurations and performs a `dict.update` (each subsequent layer overrides previous values).
 
-### Kompletní Stack (v pořadí načítání)
+### Complete Stack (in loading order)
 
 ```
-LOAD ORDER (poslední vyhrává):
+LOAD ORDER (last one wins):
 
  1. $UCAS_HOME/ucas.yaml        # System Defaults
  2. ~/.ucas/ucas.yaml           # User Defaults
- 3. team/ucas.yaml              # Team config (jen při run-team)
+ 3. team/ucas.yaml              # Team config (only for run-team)
  4. ./.ucas/ucas.yaml           # Project Defaults
- 5. agent/ucas.yaml             # Hlavní agent
- 6. mod1/ucas.yaml              # První mod z CLI
- 7. mod2/ucas.yaml              # Druhý mod z CLI (přebije mod1)
- 8. ...                         # Další mody v pořadí z CLI args
+ 5. agent/ucas.yaml             # Main agent
+ 6. mod1/ucas.yaml              # First mod from CLI
+ 7. mod2/ucas.yaml              # Second mod from CLI (overrides mod1)
+ 8. ...                         # Other mods in order from CLI args
 ────────────────────────────────────────────────────
  9. $UCAS_HOME/ucas-override.yaml   # System Veto
 10. ~/.ucas/ucas-override.yaml      # User Veto
-11. ./.ucas/ucas-override.yaml      # Project Veto (NEJSILNĚJŠÍ)
+11. ./.ucas/ucas-override.yaml      # Project Veto (STRONGEST)
 ```
 
-### Pravidla (jasně definované slučovací chování)
+### Rules (clearly defined merge behavior)
 
-* **Obecné pravidlo pro YAML klíče:** "last wins" — hodnoty z později načtené vrstvy přepíší přechozí (dict.update styl). To platí pro běžné scalar/dict klíče.
-* **Seznamy / speciální pole:**
-  - `skills` (adresáře) se **agregují** (všechny se sbírají). Každý `skills` má svůj vlastní CLI argument v ACLI (`arg_mapping`) a argumenty se skládají/merge-ují podle toho, jak je ACLI definuje.
-  - `allowed_acli`: chová se podle KISS - projekt pokud jej explicitně nastaví, použije se (přepíše). Pokud projekt nic nedefinuje, použije se kombinace user+system (union).
-* **Mody:** Mody se aplikují v přesně stejném pořadí, v jakém jsou uvedeny v CLI; při konfliktech platí pravidlo "poslední vyhrává".
-* **Override vrstvy (9-11):** Vždy se aplikují na konci a mají možnost vynutit hodnoty (project override je nejsilnější). Override soubory mohou obsahovat libovolné klíče; budeme sledovat používání v praxi a případně zavedeme `override_*` konvence.
-* **Team vrstva (3):** Pouze při `ucas run-team`.
-* **Hledání entit:** Agent/Mod se hledá v Project → User → System (first-found wins při hledání souborů). Když se entita najde, načte se její `ucas.yaml` v pořadí načítání (viz LOAD ORDER) a její hodnoty se aplikují podle výše uvedených pravidel.
+*   **General rule for YAML keys:** "last wins" — values from a later-loaded layer overwrite previous ones (dict.update style). This applies to standard scalar/dict keys.
+*   **Lists / special fields:**
+    *   `skills` (directories) are **aggregated** (all are collected). Each `skills` directory gets its own CLI argument according to the `acli.arg_mapping`, and these arguments are combined/merged as defined by the ACLI.
+    *   `allowed_acli`: Behaves according to KISS - if a project explicitly sets it, that list is used (it overrides). If the project defines nothing, a union of user+system is used.
+*   **Mods:** Mods are applied in the exact order they are listed on the CLI; for conflicts, the "last wins" rule applies.
+*   **Override layers (9-11):** These are always applied at the end and have the power to force values (the project override is the strongest). Override files can contain any keys; we will monitor usage in practice and potentially introduce `override_*` conventions.
+*   **Team layer (3):** Only used with `ucas run-team`.
+*   **Entity search:** An Agent/Mod is searched for in Project → User → System (first-found wins when searching for files). When an entity is found, its `ucas.yaml` is loaded according to the LOAD ORDER, and its values are applied according to the rules above.
 
 ---
 
-## 6. Logika Výběru ACLI (The Selector)
+## 6. ACLI Selection Logic (The Selector)
 
-Vše se vyřeší v rámci jednoho **Merged Configu** s respektováním dostupných CLI nástrojů.
+Everything is resolved within a single **Merged Config** while respecting the available CLI tools.
 
-### Konfigurace
+### Configuration
 
 ```yaml
 # ~/.ucas/ucas.yaml (User)
-allowed_acli: ["acli-claude", "acli-zai"]  # Co mám zaplacené/dostupné
-default_acli: "acli-claude"                 # Moje preference
+allowed_acli: ["acli-claude", "acli-zai"]  # What I have paid for/available
+default_acli: "acli-claude"                 # My preference
 
 # ./.ucas/ucas.yaml (Project)
-allowed_acli: ["acli-zai"]                  # Omezení pro tento projekt
+allowed_acli: ["acli-zai"]                  # Restriction for this project
 ```
 
-### Resolution (Vyhodnocení)
+### Resolution (Evaluation)
 
-Po kompletním Sandwich Merge vznikne `final_config`. Výběr ACLI probíhá takto (přesně a deterministicky):
+After the complete Sandwich Merge, a `final_config` is created. The ACLI selection proceeds as follows (precisely and deterministically):
 
-1. `override_acli`?  
-   → Pokud je nastaven (v některém `ucas-override.yaml`), použije se bez další kontroly `allowed_acli` (veto).
+1.  `override_acli` present?
+    → If set (in any `ucas-override.yaml`), it is used without checking `allowed_acli` (veto power).
 
-2. `executable` už v `final_config`?  
-   → Pokud ano (třeba proto, že uživatel dal `+acli-xxx` v CLI), považujeme to za kandidáta — dál ověříme, že binárka existuje (viz error handling).
+2.  `executable` already in `final_config`?
+    → If yes (perhaps because the user specified `+acli-xxx` on the CLI), it's considered a candidate — next, we verify the binary exists (see error handling).
 
-3. `default_acli` z agenta?  
-   → Pokud existuje a je v `allowed_acli`, použijeme jej. Pokud není v `allowed_acli`, pokračujeme.
+3.  `default_acli` from the agent?
+    → If it exists and is in `allowed_acli`, it is used. If not in `allowed_acli`, continue.
 
-4. `default_acli` z user/project?  
-   → Pokud existuje a je v `allowed_acli`, použijeme jej.
+4.  `default_acli` from user/project?
+    → If it exists and is in `allowed_acli`, it is used.
 
-5. fallback: první položka z `allowed_acli` (pokud žádná výše nevyhověla).
+5.  Fallback: the first item from `allowed_acli` (if none of the above matched).
 
-6. Pokud není nalezen žádný ACLI → ERROR.
+6.  If no ACLI is found → ERROR.
 
-Další poznámky:
-- `+acli-xxx` z CLI se chová jako každý jiný mod: jeho `ucas.yaml` se přidá do řady načítání a finální selektor pak rozhodne (KISS).
-- Pokud vybrané ACLI obsahuje `executable`, UCAS ověří, že binárka je dostupná (viz níže). Pokud není, výchozí chování je `error` (fatal) — chybový stav. (Případné budoucí fallbacky lze přidat později.)
-- `model_mapping`: pokud ACLI nemá mapování pro požadovaný model a klíč `default` neexistuje:
-  - `ignore_unknown: false` (nebo chybí) → **ERROR** (fatal, UCAS nespustí ACLI)
-  - `ignore_unknown: true` → nepředá model flag do CLI + **WARNING do logu** (ACLI použije svůj default model)
+Further notes:
+-   `+acli-xxx` from the CLI is treated like any other mod: its `ucas.yaml` is added to the load sequence, and the final selector decides (KISS).
+-   If the selected ACLI contains an `executable`, UCAS verifies that the binary is available. If not, the default behavior is a fatal `error`. (Future fallback mechanisms can be added later.)
+-   `model_mapping`: If the ACLI doesn't have a mapping for the requested model and the `default` key does not exist:
+    -   `ignore_unknown: false` (or missing) → **ERROR** (fatal, UCAS will not run the ACLI)
+    -   `ignore_unknown: true` → does not pass the model flag to the CLI + **logs a WARNING** (the ACLI will use its own default model)
 
-### Příklady použití
+### Usage Examples
 
-**Agent chce Codex, já mám jen Claude a Z.AI:**
+**Agent wants Codex, but I only have Claude and Z.AI:**
 ```
 Agent:   default_acli: "acli-codex"
 User:    allowed_acli: ["acli-claude", "acli-zai"]
-→ Codex NENÍ v allowed → fallback na acli-claude
+→ Codex is NOT in allowed → fallback to acli-claude
 ```
 
-**Agent chce Claude, já ho mám:**
+**Agent wants Claude, and I have it:**
 ```
 Agent:   default_acli: "acli-claude"
 User:    allowed_acli: ["acli-claude", "acli-zai"]
-→ Claude JE v allowed → použije se Claude
+→ Claude IS in allowed → Claude is used
 ```
 
-**Sranda projekt - jen levné CLI:**
+**Fun project - only cheap CLIs:**
 ```
 Project: allowed_acli: ["acli-zai"]
 Agent:   default_acli: "acli-claude"
 User:    allowed_acli: ["acli-claude", "acli-zai"]
-→ Project přebil user allowed → Claude NENÍ povolen → fallback na acli-zai
+→ Project overrode user's allowed list → Claude is NOT allowed → fallback to acli-zai
 ```
 
-**Vynucení konkrétního CLI:**
+**Forcing a specific CLI:**
 ```
 Project: override_acli: "acli-zai"
 Agent:   default_acli: "acli-claude"
-→ Override = veto → použije se acli-zai (bez ohledu na allowed)
+→ Override = veto → acli-zai is used (regardless of allowed)
 ```
 
-**Detekce ACLI:** Entita je ACLI pokud její `ucas.yaml` obsahuje klíč `executable`.
+**ACLI Detection:** An entity is an ACLI if its `ucas.yaml` contains the `executable` key.
 
 ---
 
-## 7. Algoritmus Exekuce (The Workflow)
+## 7. Execution Algorithm (The Workflow)
 
-**Vstup:** `ucas run php-master +git-mod --dry-run`
+**Input:** `ucas run php-master +git-mod --dry-run`
 
-### Krok 1: Resolver (Search)
+### Step 1: Resolver (Search)
 
-* Rekurzivně prohledá `agents` složky ve všech 3 vrstvách.
-* Najde cesty k `php-master` a `git-mod`.
+*   Recursively searches the `agents` folders in all 3 layers.
+*   Finds the paths to `php-master` and `git-mod`.
 
-### Krok 2: Merge (The Brain)
+### Step 2: Merge (The Brain)
 
-* **ENV:** Spojí ENV proměnné ze všech vrstev (Sandwich).
-* **SKILLS:** Najde složky `skills/` u Agenta i Modů a **agreguje** je (všechny se přidají). Každé `skills` adresář dostane svůj vlastní CLI argument podle `acli.arg_mapping` a tyto CLI argumenty se spojují dle definice ACLI.
-* **PROMPT:** Spojí `PROMPT.md` Agenta a Modů jednoduchou konkatenací s oddělovačem `---` v pořadí: agent (base) → mod1 → mod2 … (tj. CLI pořadí). Nepodporujeme v MVP „patch/replace“ promptů — pouze konkatenaci.
-* **ACLI:** Vybere vítězného ACLI modu podle výběrové logiky (viz níže) a načte jeho mapování.
+*   **ENV:** Merges ENV variables from all layers (Sandwich).
+*   **SKILLS:** Finds `skills/` folders in the Agent and Mods and **aggregates** them (all are added). Each `skills` directory gets its own CLI argument based on `acli.arg_mapping`, and these CLI arguments are combined as defined by the ACLI.
+*   **PROMPT:** Concatenates the `PROMPT.md` files of the Agent and Mods with a `---` separator, in order: agent (base) → mod1 → mod2 … (i.e., CLI order). We do not support "patch/replace" for prompts in the MVP — only concatenation.
+*   **ACLI:** Selects the winning ACLI mod according to the selection logic (see below) and loads its mappings.
 
-### Krok 3: Generate (Artifacts)
+### Step 3: Generate (Artifacts)
 
-* Uloží sloučený prompt do `./.ucas/tmp/[session].merged.md`.
-* Sestaví `$PATH` z adresářů `skills` tak, aby platilo pravidlo "pozdější mod v CLI má prioritu". Prakticky to znamená: modifikátory se přidávají do PATH v reverzním CLI pořadí (tzn. poslední mod v CLI se přidá jako první v PATH), následně se přidá `agent` skills a poté stávající `$PATH`. Tím zajistíme, že soubory v pozdějším modu stíní soubory v dřívějších modech.
+*   Saves the merged prompt to `./.ucas/tmp/[session].merged.md`.
+*   Constructs the `$PATH` from the `skills` directories so that the "later mod on CLI has priority" rule holds. In practice, this means: modifiers are added to PATH in reverse CLI order (so the last mod on the CLI is added first to the PATH), followed by the `agent` skills, and then the existing `$PATH`. This ensures that files in a later mod shadow files in earlier mods.
 
-### Krok 4: Launch (Tmux/Dry-Run)
+### Step 4: Launch (Tmux/Dry-Run)
 
-* Načte definici vítězného ACLI (`executable` + `arg_mapping`).
-* Dosadí vygenerované cesty do argumentů.
-* **Pokud `--dry-run`:** Vypíše přesný sestavený příkaz na stdout, včetně kompletního exportu `PATH` a všech použitých CLI argumentů, a skončí.
-* **Pokud Run:** UCAS se pokusí spustit příkaz ve wrapperu (ve výchozím stavu `tmux`).
-  - UCAS před spuštěním ověří, že `tmux` je dostupný. Pokud `tmux` není nainstalován → chybové ukončení (fatal error).
-  - Implementačně držíme wrapper abstrakci (tmux je jen jeden wrapper). Wrapper může být v budoucnu definován na project/user úrovni, takže `tmux` lze vyměnit za jiný mechanismus bez změny logiky, jak se příkaz sestavuje.
-  - Příklad jak bude vypadat volání (konkrétně vypsaný příkaz v `--dry-run`):
-```bash
-export PATH=/path/to/last-mod-skills:/path/to/prev-mod-skills:/path/to/agent-skills:$PATH; claude --system ./.ucas/tmp/merged.md --tools /path/to/skills1 --model opus-4.5
-```
-
-
+*   Loads the definition of the winning ACLI (`executable` + `arg_mapping`).
+*   Substitutes the generated paths into the arguments.
+*   **If `--dry-run`:** Prints the exact assembled command to stdout, including the complete `PATH` export and all used CLI arguments, and then exits.
+*   **If Run:** UCAS attempts to run the command in a wrapper (default is `tmux`).
+    *   UCAS verifies `tmux` is available before running. If `tmux` is not installed → fatal error.
+    -   Implementation-wise, we maintain a wrapper abstraction (`tmux` is just one wrapper). The wrapper could be defined at the project/user level in the future, so `tmux` could be replaced with another mechanism without changing the command-building logic.
+    -   Example of what the call will look like (the exact command printed in `--dry-run`):
+      ```bash
+      export PATH=/path/to/last-mod-skills:/path/to/prev-mod-skills:/path/to/agent-skills:$PATH; claude --system ./.ucas/tmp/merged.md --tools /path/to/skills1 --model opus-4.5
+      ```
 
 ---
 
-## 8. Týmy (Orchestration)
+## 8. Teams (Orchestration)
 
-* **Příkaz:** `ucas run-team [TEAM_NAME]`
-* **Definice:** YAML soubor v `teams/[TEAM_NAME]/ucas.yaml`.
-* **Struktura:**
-```yaml
-name: "backend-squad"
-members:
-  karel:
-    agent: "php-master"
-    mods: ["git-mod", "debug-mod"]
-  pepa:
-    agent: "sql-guru"
-```
+*   **Command:** `ucas run-team [TEAM_NAME]`
+*   **Definition:** A YAML file at `teams/[TEAM_NAME]/ucas.yaml`.
+*   **Structure:**
+    ```yaml
+    name: "backend-squad"
+    members:
+      karel:
+        agent: "php-master"
+        mods: ["git-mod", "debug-mod"]
+      pepa:
+        agent: "sql-guru"
+    ```
 
-* **Proces:** Iteruje členy a pro každého spustí **Algoritmus Exekuce** (body 1-7) sekvenčně (jeden po druhém), ne paralelně. Toto chování zabraňuje náhlému spuštění velkého množství agentů najednou a přetížení desktopu.
-  - Mezi jednotlivými starty je možný `sleep` (zpoždění), které lze konfigurovat na úrovni project/team/user (např. `team.sleep_seconds: 5`). Defaultně bez prodlevy, pokud členská konfigurace nic neurčí.
-  - Každý člen dostane své okno/výstup podle wrapperu (tmux). Pokud okno se stejným jménem existuje, UCAS vytvoří nové okno s přidaným timestampem, aby se předešlo kolizím.
+*   **Process:** Iterates through the members and runs the **Execution Algorithm** (steps 1-7) for each one sequentially (one after another), not in parallel. This behavior prevents a large number of agents from starting at once and overloading the desktop.
+    *   A `sleep` (delay) between starts is possible, configurable at the project/team/user level (e.g., `team.sleep_seconds: 5`). Defaults to no delay if the member configuration specifies nothing.
+    *   Each member gets its own window/output according to the wrapper (tmux). If a window with the same name exists, UCAS creates a new window with an added timestamp to avoid collisions.
 
 ---
 
-## 9. Technické Požadavky
+## 9. Technical Requirements
 
-### Python Kompatibilita
+### Python Compatibility
 
-* **Minimální verze:** Python 3.6+
-* **Žádné externí závislosti** - pouze stdlib
+*   **Minimum version:** Python 3.6+
+*   **No external dependencies** - only the stdlib.
 
 ### Mini YAML Parser
 
-Vlastní implementace YAML parseru (bez PyYAML závislosti). Cílem je KISS — podpora jen pro potřebné konstrukce s přehlednými chybami.
+A custom YAML parser implementation (no PyYAML dependency). The goal is KISS — supporting only the necessary constructs with clear error messages.
 
-Podporované chování a syntaxe:
-- indentace pouze spaces (taby zakázány)
-- flow-style seznamy (inline): `[a, b, c]`
-- jednoduché dicty a listy (nested)
-- string (s/bez uvozovek)
-- bool (true/false/yes/no)
-- null
-- komentáře (#)
+Supported behavior and syntax:
+-   Indentation with spaces only (tabs are forbidden)
+-   Flow-style lists (inline): `[a, b, c]`
+-   Simple dicts and lists (nested)
+-   Strings (with/without quotes)
+-   Booleans (true/false/yes/no)
+-   null
+-   Comments (#)
 
-Omezení (explicitně):
-- multiline strings nejsou podporovány (PROMPT.md slouží pro multilines)
-- anchors/aliases nejsou podporovány
-- komplexní klíče a YAML tagy nejsou podporovány
+Explicitly unsupported:
+-   Multiline strings are not supported (`PROMPT.md` is used for multilines)
+-   Anchors/aliases are not supported
+-   Complex keys and YAML tags are not supported
 
-Parser musí být přísný a vracet jasné chyby s číslem řádku. KISS: minimální, deterministická podmnožina YAML, dostatečná pro `ucas.yaml` konfigurace. Inline slovníky `{k: v}` nejsou potřeba v MVP (můžeme přidat později podle potřeby).
+The parser must be strict and return clear errors with line numbers. KISS: a minimal, deterministic subset of YAML, sufficient for `ucas.yaml` configurations. Inline dictionaries `{k: v}` are not needed for the MVP (can be added later if needed).
 
 ---
 
-## 10. Implementační Plán (MVP Scope)
+## 10. Implementation Plan (MVP Scope)
 
-### Modul `yaml_parser.py`
+### `yaml_parser.py` Module
 
-* Mini YAML parser (viz sekce 9)
-* `parse(text) -> dict`: Hlavní funkce
+*   Mini YAML parser (see section 9)
+*   `parse(text) -> dict`: Main function
 
-### Modul `cli.py`
+### `cli.py` Module
 
-* Parsování CLI argumentů (argparse)
-* Rozpoznání `run` vs `run-team` příkazu
-* Extrakce agent name, modů (`+mod`), flagů (`--dry-run`, `--debug`)
+*   Parse CLI arguments (argparse)
+*   Distinguish `run` vs `run-team` commands
+*   Extract agent name, mods (`+mod`), and flags (`--dry-run`, `--debug`)
 
-### Modul `resolver.py`
+### `resolver.py` Module
 
-* `find_entity(name)`: Hledání ve vrstvách Project → User → System (první nalezený)
-* `is_acli(entity)`: Detekce ACLI podle přítomnosti `executable` klíče
+*   `find_entity(name)`: Search in layers Project → User → System (first one found wins)
+*   `is_acli(entity)`: Detect ACLI by the presence of the `executable` key
 
-### Modul `merger.py`
+### `merger.py` Module
 
-* `load_sandwich(agent, mods, is_team)`: Načtení configů ve správném pořadí (1-11)
-* `merge_configs(configs)`: Update dictů, agregace skills paths
+*   `load_sandwich(agent, mods, is_team)`: Load configs in the correct order (1-11)
+*   `merge_configs(configs)`: Update dicts, aggregate skills paths
 
-### Modul `launcher.py`
+### `launcher.py` Module
 
-* `select_acli(merged_config, cli_mods)`: Prioritní výběr ACLI (sekce 6)
-* `build_command(acli, merged_config)`: Dosazení do `arg_mapping`
-* `generate_prompt(agent, mods)`: Concatenace PROMPT.md souborů
-* `run_tmux(command, name)`: Spuštění v novém tmux okně
+*   `select_acli(merged_config, cli_mods)`: Priority-based ACLI selection (section 6)
+*   `build_command(acli, merged_config)`: Substitute into `arg_mapping`
+*   `generate_prompt(agent, mods)`: Concatenate PROMPT.md files
+*   `run_tmux(command, name)`: Run in a new tmux window
 
-### Rozsah MVP
+### MVP Scope
 
-- `ucas run [agent] +[mod]` - spuštění agenta
-- `ucas run-team [team]` - loop přes členy, volá interní `run()`
-- `--dry-run` - výpis příkazu bez spuštění
-- `--debug` - verbose merge tracing
-- Třívrstvé hledání entit
-- Kompletní sandwich merge
-
+-   `ucas run [agent] +[mod]` - run an agent
+-   `ucas run-team [team]` - loop through members, internally calls `run()`
+-   `--dry-run` - print command without execution
+-   `--debug` - verbose merge tracing
+-   Three-layer entity searching
+-   Complete sandwich merge
 
 # IDEAS + EXAMPLES
 
-- pouzit Dippy pro message inject do vsech agentu co podporuje?
-  - dippy ma podporu pro vice cli
-  - mozna by mohlo vracet navic informace o message
+-   use Dippy for message injection into all supported agents?
+    -   dippy has support for multiple CLIs
+    -   maybe it could return additional info about the message
 
-## Příklad `ucas-override.yaml` (project-level — vynutí ACLI)
+## Example `ucas-override.yaml` (project-level — forces an ACLI)
 ```yaml
 # ./.ucas/ucas-override.yaml
-# Vynuti claude s Haiku v projektu
+# Forces claude with Haiku in the project
 override_acli: "acli-claude-cheap"
-# Volitelně ignore_unknown: true umožní nepředávat neznámé modely
+# Optionally, ignore_unknown: true allows not passing unknown models
 ignore_unknown: true
 ```
 
-## Příklad `ucas-override.yaml` (user-level)
+## Example `ucas-override.yaml` (user-level)
 ```yaml
 # ~/.ucas/ucas-override.yaml
-# Default claude, ale kdyz nekdo bude vyzadovat claude ZAI tak umozni
+# Default is claude, but allow claude-zai if someone requests it
 allowed_acli: ["acli-claude", "acli-claude-zai"]
-# udela error kdyz nenajde mapping modelu
+# will error if it doesn't find a model mapping
 ignore_unknown: false
 ```
 
-Poznámka: tyto příklady slouží jako reference; override soubory mohou obsahovat libovolné klíče a budou aplikovány poslední (project override je nejsilnější). Doporučeno je sledovat reálné používání a případně doplnit standardizované klíče `override_*` v budoucnu.
+Note: these examples serve as a reference; override files can contain any keys and will be applied last (project override is the strongest). It is recommended to monitor real-world usage and potentially add standardized `override_*` keys in the future.
