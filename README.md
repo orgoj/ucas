@@ -7,15 +7,20 @@
 ### Installation
 
 ```bash
-# Set UCAS_HOME to system library location
-export UCAS_HOME=/path/to/ucas
+# Option 1: Symlink in ~/bin (recommended for development)
+ln -s /path/to/ucas/ucas-bin ~/bin/ucas
+ucas run basic-chat
 
-# Run directly with Python
+# Option 2: Run directly with Python
 python -m ucas run basic-chat
 
-# Or install as package
+# Option 3: Install as package
 pip install -e .
 ucas run basic-chat
+
+# Note: UCAS_HOME is optional - defaults to package installation directory
+# Only set UCAS_HOME if you want to override the default system agents location
+export UCAS_HOME=/custom/location
 ```
 
 ### Basic Usage
@@ -67,7 +72,7 @@ ucas/
 UCAS uses an 11-layer "Sandwich Merge" system:
 
 **Bottom Layers (defaults):**
-1. `$UCAS_HOME/ucas.yaml` - System defaults
+1. `$UCAS_HOME/ucas.yaml` - System defaults (defaults to package location)
 2. `~/.ucas/ucas.yaml` - User defaults
 3. `./.ucas/ucas.yaml` - Project defaults
 4. `agent/ucas.yaml` - Main agent
@@ -77,6 +82,11 @@ UCAS uses an 11-layer "Sandwich Merge" system:
 - `$UCAS_HOME/ucas-override.yaml` - System veto
 - `~/.ucas/ucas-override.yaml` - User veto
 - `./.ucas/ucas-override.yaml` - Project veto (strongest)
+
+**System Layer Auto-Detection:**
+- If `UCAS_HOME` is set, uses `$UCAS_HOME/agents/`
+- If not set, uses `<package-install-dir>/agents/`
+- This means UCAS_HOME is **optional** - it auto-discovers system agents
 
 ## Key Features
 

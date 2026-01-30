@@ -23,12 +23,17 @@ def get_search_paths() -> list:
     if user_path.exists():
         paths.append(user_path)
 
-    # System layer: $UCAS_HOME/agents/
+    # System layer: $UCAS_HOME/agents/ or package location
     ucas_home = os.environ.get('UCAS_HOME')
-    if ucas_home:
-        system_path = Path(ucas_home) / 'agents'
-        if system_path.exists():
-            paths.append(system_path)
+    if not ucas_home:
+        # Default to package installation directory
+        # __file__ is .../ucas/resolver.py, so parent.parent is the repo root
+        package_dir = Path(__file__).parent.parent
+        ucas_home = str(package_dir)
+
+    system_path = Path(ucas_home) / 'agents'
+    if system_path.exists():
+        paths.append(system_path)
 
     return paths
 
@@ -112,14 +117,18 @@ def get_layer_config_paths() -> Tuple[Optional[Path], Optional[Path], Optional[P
 
     # System layer
     ucas_home = os.environ.get('UCAS_HOME')
-    if ucas_home:
-        system_base = Path(ucas_home)
-        sc = system_base / 'ucas.yaml'
-        if sc.exists():
-            system_config = sc
-        so = system_base / 'ucas-override.yaml'
-        if so.exists():
-            system_override = so
+    if not ucas_home:
+        # Default to package installation directory
+        package_dir = Path(__file__).parent.parent
+        ucas_home = str(package_dir)
+
+    system_base = Path(ucas_home)
+    sc = system_base / 'ucas.yaml'
+    if sc.exists():
+        system_config = sc
+    so = system_base / 'ucas-override.yaml'
+    if so.exists():
+        system_override = so
 
     # User layer
     user_base = Path.home() / '.ucas'

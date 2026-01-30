@@ -1,0 +1,12 @@
+#!/usr/bin/env python3
+"""UCAS wrapper for ~/bin installation"""
+import sys
+from pathlib import Path
+
+# Add ucas package to path
+ucas_dir = Path(__file__).parent.resolve()
+sys.path.insert(0, str(ucas_dir))
+
+# Run ucas
+from ucas.__main__ import main
+main()
