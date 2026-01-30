@@ -1,0 +1,2 @@
+allow export UCAS_HOME=*
+allow python3 -m ucas *
