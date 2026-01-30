@@ -253,7 +253,9 @@ Po kompletním Sandwich Merge vznikne `final_config`. Výběr ACLI probíhá tak
 Další poznámky:
 - `+acli-xxx` z CLI se chová jako každý jiný mod: jeho `ucas.yaml` se přidá do řady načítání a finální selektor pak rozhodne (KISS).
 - Pokud vybrané ACLI obsahuje `executable`, UCAS ověří, že binárka je dostupná (viz níže). Pokud není, výchozí chování je `error` (fatal) — chybový stav. (Případné budoucí fallbacky lze přidat později.)
-- `model_mapping`: pokud ACLI nemá mapování pro požadovaný model a nepravidlo `default` neexistuje, UCAS vytvoří chybu a nespouští ACLI, pokud není na některé úrovni explicitně nastaven `ignore_unknown: true`. Když `ignore_unknown: true` je nastaveno (může být v user/project), UCAS nepředá žádný model-flag ACLI (tj. CLI arg s modelem se negeneruje).
+- `model_mapping`: pokud ACLI nemá mapování pro požadovaný model a klíč `default` neexistuje:
+  - `ignore_unknown: false` (nebo chybí) → **ERROR** (fatal, UCAS nespustí ACLI)
+  - `ignore_unknown: true` → nepředá model flag do CLI + **WARNING do logu** (ACLI použije svůj default model)
 
 ### Příklady použití
 
