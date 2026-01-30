@@ -202,12 +202,16 @@ LOAD ORDER (poslední vyhrává):
 11. ./.ucas/ucas-override.yaml      # Project Veto (NEJSILNĚJŠÍ)
 ```
 
-### Pravidla
+### Pravidla (jasně definované slučovací chování)
 
-* **Base vrstvy (1-8):** Postupně se načítají a přebíjejí. Mody se aplikují v pořadí z CLI.
-* **Override vrstvy (9-11):** Vždy na konci. Slouží k vynucení pravidel (např. `override_acli`).
-* **Team vrstva (3):** Pouze při `ucas run-team`, jinak se přeskakuje.
-* **Hledání entit:** Agent/Mod se hledá v Project → User → System (první nalezený vyhrává).
+* **Obecné pravidlo pro YAML klíče:** "last wins" — hodnoty z později načtené vrstvy přepíší přechozí (dict.update styl). To platí pro běžné scalar/dict klíče.
+* **Seznamy / speciální pole:**
+  - `skills` (adresáře) se **agregují** (všechny se sbírají). Každý `skills` má svůj vlastní CLI argument v ACLI (`arg_mapping`) a argumenty se skládají/merge-ují podle toho, jak je ACLI definuje.
+  - `allowed_acli`: chová se podle KISS - projekt pokud jej explicitně nastaví, použije se (přepíše). Pokud projekt nic nedefinuje, použije se kombinace user+system (union).
+* **Mody:** Mody se aplikují v přesně stejném pořadí, v jakém jsou uvedeny v CLI; při konfliktech platí pravidlo "poslední vyhrává".
+* **Override vrstvy (9-11):** Vždy se aplikují na konci a mají možnost vynutit hodnoty (project override je nejsilnější). Override soubory mohou obsahovat libovolné klíče; budeme sledovat používání v praxi a případně zavedeme `override_*` konvence.
+* **Team vrstva (3):** Pouze při `ucas run-team`.
+* **Hledání entit:** Agent/Mod se hledá v Project → User → System (first-found wins při hledání souborů). Když se entita najde, načte se její `ucas.yaml` v pořadí načítání (viz LOAD ORDER) a její hodnoty se aplikují podle výše uvedených pravidel.
 
 ---
 
@@ -228,26 +232,28 @@ allowed_acli: ["acli-zai"]                  # Omezení pro tento projekt
 
 ### Resolution (Vyhodnocení)
 
-Po Sandwich Merge má UCAS `final_config` a postupuje takto:
+Po kompletním Sandwich Merge vznikne `final_config`. Výběr ACLI probíhá takto (přesně a deterministicky):
 
-```
-1. override_acli? 
-   → použij (veto - bez kontroly allowed)
+1. `override_acli`?  
+   → Pokud je nastaven (v některém `ucas-override.yaml`), použije se bez další kontroly `allowed_acli` (veto).
 
-2. executable už v configu? 
-   → hotovo (přišlo z +acli-mod v CLI)
+2. `executable` už v `final_config`?  
+   → Pokud ano (třeba proto, že uživatel dal `+acli-xxx` v CLI), považujeme to za kandidáta — dál ověříme, že binárka existuje (viz error handling).
 
-3. default_acli z agenta?
-   → JE v allowed_acli? → použij
-   → NENÍ? → pokračuj
+3. `default_acli` z agenta?  
+   → Pokud existuje a je v `allowed_acli`, použijeme jej. Pokud není v `allowed_acli`, pokračujeme.
 
-4. default_acli z user/project?
-   → JE v allowed_acli? → použij
+4. `default_acli` z user/project?  
+   → Pokud existuje a je v `allowed_acli`, použijeme jej.
 
-5. fallback: první z allowed_acli
+5. fallback: první položka z `allowed_acli` (pokud žádná výše nevyhověla).
 
-6. Nic? → ERROR
-```
+6. Pokud není nalezen žádný ACLI → ERROR.
+
+Další poznámky:
+- `+acli-xxx` z CLI se chová jako každý jiný mod: jeho `ucas.yaml` se přidá do řady načítání a finální selektor pak rozhodne (KISS).
+- Pokud vybrané ACLI obsahuje `executable`, UCAS ověří, že binárka je dostupná (viz níže). Pokud není, výchozí chování je `error` (fatal) — chybový stav. (Případné budoucí fallbacky lze přidat později.)
+- `model_mapping`: pokud ACLI nemá mapování pro požadovaný model a nepravidlo `default` neexistuje, UCAS vytvoří chybu a nespouští ACLI, pokud není na některé úrovni explicitně nastaven `ignore_unknown: true`. Když `ignore_unknown: true` je nastaveno (může být v user/project), UCAS nepředá žádný model-flag ACLI (tj. CLI arg s modelem se negeneruje).
 
 ### Příklady použití
 
@@ -296,24 +302,26 @@ Agent:   default_acli: "acli-claude"
 ### Krok 2: Merge (The Brain)
 
 * **ENV:** Spojí ENV proměnné ze všech vrstev (Sandwich).
-* **SKILLS:** Najde složky `skills/` u Agenta i Modů.
-* **PROMPT:** Spojí `PROMPT.md` Agenta a Modů (oddělovač `---`).
-* **ACLI:** Vybere vítězný ACLI Mod (např. `acli-claude`) a načte jeho mapování.
+* **SKILLS:** Najde složky `skills/` u Agenta i Modů a **agreguje** je (všechny se přidají). Každé `skills` adresář dostane svůj vlastní CLI argument podle `acli.arg_mapping` a tyto CLI argumenty se spojují dle definice ACLI.
+* **PROMPT:** Spojí `PROMPT.md` Agenta a Modů jednoduchou konkatenací s oddělovačem `---` v pořadí: agent (base) → mod1 → mod2 … (tj. CLI pořadí). Nepodporujeme v MVP „patch/replace“ promptů — pouze konkatenaci.
+* **ACLI:** Vybere vítězného ACLI modu podle výběrové logiky (viz níže) a načte jeho mapování.
 
 ### Krok 3: Generate (Artifacts)
 
 * Uloží sloučený prompt do `./.ucas/tmp/[session].merged.md`.
-* Sestaví `$PATH` = `[AgentSkills] : [ModSkills] : $PATH`.
+* Sestaví `$PATH` z adresářů `skills` tak, aby platilo pravidlo "pozdější mod v CLI má prioritu". Prakticky to znamená: modifikátory se přidávají do PATH v reverzním CLI pořadí (tzn. poslední mod v CLI se přidá jako první v PATH), následně se přidá `agent` skills a poté stávající `$PATH`. Tím zajistíme, že soubory v pozdějším modu stíní soubory v dřívějších modech.
 
 ### Krok 4: Launch (Tmux/Dry-Run)
 
 * Načte definici vítězného ACLI (`executable` + `arg_mapping`).
 * Dosadí vygenerované cesty do argumentů.
-* **Pokud `--dry-run`:** Vypíše příkaz na stdout a skončí.
-* **Pokud Run:**
+* **Pokud `--dry-run`:** Vypíše přesný sestavený příkaz na stdout, včetně kompletního exportu `PATH` a všech použitých CLI argumentů, a skončí.
+* **Pokud Run:** UCAS se pokusí spustit příkaz ve wrapperu (ve výchozím stavu `tmux`).
+  - UCAS před spuštěním ověří, že `tmux` je dostupný. Pokud `tmux` není nainstalován → chybové ukončení (fatal error).
+  - Implementačně držíme wrapper abstrakci (tmux je jen jeden wrapper). Wrapper může být v budoucnu definován na project/user úrovni, takže `tmux` lze vyměnit za jiný mechanismus bez změny logiky, jak se příkaz sestavuje.
+  - Příklad jak bude vypadat volání (konkrétně vypsaný příkaz v `--dry-run`):
 ```bash
-tmux new-window -n "php-master" "export PATH=...; claude --system ./.ucas/tmp/merged.md --tools ..."
-
+export PATH=/path/to/last-mod-skills:/path/to/prev-mod-skills:/path/to/agent-skills:$PATH; claude --system ./.ucas/tmp/merged.md --tools /path/to/skills1 --model opus-4.5
 ```
 
 
@@ -333,11 +341,11 @@ members:
     mods: ["git-mod", "debug-mod"]
   pepa:
     agent: "sql-guru"
-
 ```
 
-
-* **Proces:** Iteruje členy a pro každého spustí **Algoritmus Exekuce** (body 1-7). Každý člen dostane své okno v tmux.
+* **Proces:** Iteruje členy a pro každého spustí **Algoritmus Exekuce** (body 1-7) sekvenčně (jeden po druhém), ne paralelně. Toto chování zabraňuje náhlému spuštění velkého množství agentů najednou a přetížení desktopu.
+  - Mezi jednotlivými starty je možný `sleep` (zpoždění), které lze konfigurovat na úrovni project/team/user (např. `team.sleep_seconds: 5`). Defaultně bez prodlevy, pokud členská konfigurace nic neurčí.
+  - Každý člen dostane své okno/výstup podle wrapperu (tmux). Pokud okno se stejným jménem existuje, UCAS vytvoří nové okno s přidaným timestampem, aby se předešlo kolizím.
 
 ---
 
@@ -350,21 +358,23 @@ members:
 
 ### Mini YAML Parser
 
-Vlastní implementace YAML parseru (bez PyYAML závislosti).
+Vlastní implementace YAML parseru (bez PyYAML závislosti). Cílem je KISS — podpora jen pro potřebné konstrukce s přehlednými chybami.
 
-**Podporované typy:**
-- dict (nested)
-- list
+Podporované chování a syntaxe:
+- indentace pouze spaces (taby zakázány)
+- flow-style seznamy (inline): `[a, b, c]`
+- jednoduché dicty a listy (nested)
 - string (s/bez uvozovek)
 - bool (true/false/yes/no)
 - null
 - komentáře (#)
 
-**Nepodporované (YAGNI):**
-- anchors/aliases
-- multiline strings
-- complex keys
-- tags
+Omezení (explicitně):
+- multiline strings nejsou podporovány (PROMPT.md slouží pro multilines)
+- anchors/aliases nejsou podporovány
+- komplexní klíče a YAML tagy nejsou podporovány
+
+Parser musí být přísný a vracet jasné chyby s číslem řádku. KISS: minimální, deterministická podmnožina YAML, dostatečná pro `ucas.yaml` konfigurace. Inline slovníky `{k: v}` nejsou potřeba v MVP (můžeme přidat později podle potřeby).
 
 ---
 
@@ -406,3 +416,30 @@ Vlastní implementace YAML parseru (bez PyYAML závislosti).
 - `--debug` - verbose merge tracing
 - Třívrstvé hledání entit
 - Kompletní sandwich merge
+
+
+# IDEAS + EXAMPLES
+
+- pouzit Dippy pro message inject do vsech agentu co podporuje?
+  - dippy ma podporu pro vice cli
+  - mozna by mohlo vracet navic informace o message
+
+## Příklad `ucas-override.yaml` (project-level — vynutí ACLI)
+```yaml
+# ./.ucas/ucas-override.yaml
+# Vynuti claude s Haiku v projektu
+override_acli: "acli-claude-cheap"
+# Volitelně ignore_unknown: true umožní nepředávat neznámé modely
+ignore_unknown: true
+```
+
+## Příklad `ucas-override.yaml` (user-level)
+```yaml
+# ~/.ucas/ucas-override.yaml
+# Default claude, ale kdyz nekdo bude vyzadovat claude ZAI tak umozni
+allowed_acli: ["acli-claude", "acli-claude-zai"]
+# udela error kdyz nenajde mapping modelu
+ignore_unknown: false
+```
+
+Poznámka: tyto příklady slouží jako reference; override soubory mohou obsahovat libovolné klíče a budou aplikovány poslední (project override je nejsilnější). Doporučeno je sledovat reálné používání a případně doplnit standardizované klíče `override_*` v budoucnu.
