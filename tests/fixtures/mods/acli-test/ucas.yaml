@@ -1,0 +1,6 @@
+name: acli-test
+executable: test-exe
+arg_mapping:
+  prompt_file: "--msg"
+model_mapping:
+  default: actual-test-model

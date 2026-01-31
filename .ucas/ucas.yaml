@@ -1,0 +1,10 @@
+# Project defaults
+allowed_acli:
+  - acli-echo
+
+teams:
+  backend:
+    mods: [messaging-mod]
+    agents:
+      karel:
+        agent: [basic-chat, api-mod, git-mod]

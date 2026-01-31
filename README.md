@@ -98,20 +98,17 @@ ucas/
 │   ├── resolver.py          # Entity search across layers
 │   ├── merger.py            # Sandwich merge logic
 │   └── launcher.py          # Command building & tmux execution
-├── agents/                  # System Library ($UCAS_HOME/agents/)
+├── mods/                    # System Library (Agents, Mods, and definitions)
 │   ├── acli-claude/
 │   │   └── ucas.yaml
 │   ├── basic-chat/
 │   │   ├── ucas.yaml
 │   │   └── PROMPT.md
-│   └── git-mod/
-│       ├── ucas.yaml
-│       ├── PROMPT.md
-│       └── skills/
-├── teams/                   # Team definitions
-│   └── example-team/
-│       └── ucas.yaml
-└── ucas.yaml                # System defaults
+│   ├── git-mod/
+│   │   ├── ucas.yaml
+│   │   ├── PROMPT.md
+│   │   └── skills/
+└── ucas.yaml                # System defaults (can also define teams)
 ```
 
 ## Configuration Layers
@@ -151,8 +148,8 @@ UCAS uses a multi-layer "Sandwich Merge" system to build the final configuration
 - `./.ucas/ucas-override.yaml` - Project veto (strongest)
 
 **System Layer Auto-Detection:**
-- If `UCAS_HOME` is set, uses `$UCAS_HOME/agents/`
-- If not set, uses `<package-install-dir>/agents/`
+- If `UCAS_HOME` is set, uses `$UCAS_HOME/mods/`
+- If not set, uses `<package-install-dir>/mods/`
 - This means UCAS_HOME is **optional** - it auto-discovers system agents
 
 ## Key Features
@@ -190,6 +187,23 @@ ucas run basic-chat +git-mod +docker-mod
 # Results in: --tools /path/to/basic-chat/skills --tools /path/to/git-mod/skills --tools /path/to/docker-mod/skills
 ```
 
+### Lifecycle Hooks
+Mods can define executable hooks to automate setup and execution flows:
+- `install`: Run once in the host environment (useful for `npm install` etc).
+- `prerun`: Run in the tmux window immediately before the main agent starts.
+- `postrun`: Run in the tmux window after the main agent exits.
+
+### Execution Context (Environment Variables)
+UCAS injects the following context into all hooks and the main process:
+- `UCAS_AGENT`: Current agent name.
+- `UCAS_TEAM`: Current team name (if running as part of a team).
+- `UCAS_AGENT_DIR`: Absolute path to the mod's definition directory.
+- `UCAS_AGENT_NOTES`: Project-specific storage path (`./.ucas/notes/<agent>/`).
+- `UCAS_PROJECT_ROOT`: Absolute path to the current project.
+- `UCAS_SESSION_ID`: Unique ID for the current execution session.
+- `UCAS_ACLI_EXE`: The resolved ACLI executable.
+- `UCAS_MAIN_COMMAND`: The full command line used to launch the primary agent.
+
 ### ACLI Selection
 Priority order:
 1. `override_acli` (from override files - veto power)
@@ -201,7 +215,7 @@ Priority order:
 
 ### Agent Definition
 ```yaml
-# agents/basic-chat/ucas.yaml
+# mods/basic-chat/ucas.yaml
 name: basic-chat
 requested_model: gpt-4
 default_acli: acli-claude
@@ -209,14 +223,14 @@ default_acli: acli-claude
 
 ### Mod Definition
 ```yaml
-# agents/git-mod/ucas.yaml
+# mods/git-mod/ucas.yaml
 name: git-mod
 description: Adds git operation capabilities
 ```
 
 ### ACLI Definition
 ```yaml
-# agents/acli-claude/ucas.yaml
+# mods/acli-claude/ucas.yaml
 name: acli-claude
 executable: claude
 
@@ -231,18 +245,24 @@ model_mapping:
 ```
 
 ### Team Definition
-```yaml
-# teams/example-team/ucas.yaml
-name: example-team
-sleep_seconds: 1
+Teams are typically defined in `.ucas/ucas.yaml` or any mod's `ucas.yaml` under the `teams` key:
 
-members:
-  agent1:
-    agent: basic-chat
-  agent2:
-    agent: basic-chat
-    mods:
-      - git-mod
+```yaml
+# .ucas/ucas.yaml
+teams:
+  backend-squad:
+    mods: [messaging-mod] # Global mods for all members
+    agents:
+      karel:
+        mods: [basic-chat, api-mod, git-mod]
+        # other member flags can go here
+      lucie:
+        mods: [basic-chat, aws-mod]
+```
+
+Executing a team:
+```bash
+ucas run-team backend-squad
 ```
 
 ## Implementation Status
@@ -257,9 +277,10 @@ members:
 
 1. **No external dependencies** - Python 3.6+ stdlib only, custom YAML parser
 2. **Skills as arguments** - No PATH manipulation, skills passed via `arg_mapping.skills_dir`
-3. **First match wins** - Entity search stops at first found (Project → User → System)
-4. **Last wins merge** - Dict keys overwritten by later layers
-5. **Skills aggregated** - All `skills/` directories collected and passed
+3. **First match wins** - Entity search for mods/agents stops at first found directory (Project → User → System).
+4. **Horizontal Merge for Teams** - Team definitions are aggregated from all `ucas.yaml` layers. Later layers can override specific teams or add new ones.
+5. **Last wins merge** - Dict keys in configurations are overwritten by later layers.
+6. **Skills/Hooks aggregated** - All `skills/` directories and `hooks` commands are collected and combined.
 
 ## Roadmap
 

@@ -1,0 +1,3 @@
+name: mod-a
+hooks:
+  prerun: echo "MOD-A-PRE"

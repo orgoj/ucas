@@ -17,6 +17,68 @@ class LaunchError(Exception):
     pass
 
 
+def prepare_context(agent_name: str, agent_path: Path, team_name: Optional[str] = None) -> Dict[str, str]:
+    """
+    Prepare environment variables for mod execution.
+    Creates UCAS_AGENT_NOTES directory.
+    """
+    project_root = Path.cwd().resolve()
+    notes_dir = project_root / '.ucas' / 'notes' / agent_name
+    notes_dir.mkdir(parents=True, exist_ok=True)
+
+    # Generate a session ID if not provided (e.g. from parent team process)
+    session_id = os.environ.get('UCAS_SESSION_ID')
+    if not session_id:
+        timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+        suffix = os.urandom(3).hex()
+        session_id = f"{timestamp}-{suffix}"
+
+    context = {
+        'UCAS_AGENT': agent_name,
+        'UCAS_TEAM': team_name or '',
+        'UCAS_AGENT_DIR': str(agent_path.resolve()),
+        'UCAS_AGENT_NOTES': str(notes_dir.resolve()),
+        'UCAS_PROJECT_ROOT': str(project_root),
+        'UCAS_SESSION_ID': session_id
+    }
+    return context
+
+
+def get_context_export_str(context: Dict[str, str]) -> str:
+    """Return a string of exports for shell injection."""
+    parts = []
+    for k, v in context.items():
+        parts.append(f"export {k}={shlex.quote(v)}")
+    return ' && '.join(parts)
+
+
+class HookRunner:
+    """Runs lifecycle hooks with injected context."""
+    def __init__(self, context: Dict[str, str], debug: bool = False):
+        self.context = context
+        self.debug = debug
+        self.env = os.environ.copy()
+        self.env.update(context)
+
+    def run(self, hooks: Dict[str, Any], stage: str):
+        """Run all commands for a given stage."""
+        cmds = hooks.get(stage)
+        if not cmds:
+            return
+
+        if isinstance(cmds, str):
+            cmds = [cmds]
+
+        for cmd in cmds:
+            if self.debug:
+                print(f"[HOOK] Running {stage}: {cmd}", file=sys.stderr)
+            try:
+                # Run in shell to support env var expansion and multiple commands
+                subprocess.run(cmd, shell=True, env=self.env, check=True)
+            except subprocess.CalledProcessError as e:
+                raise LaunchError(f"Hook '{stage}' failed: {cmd} (exit code {e.returncode})")
+
+
 def select_acli(merged_config: Dict[str, Any], debug: bool = False) -> str:
     """
     Select ACLI based on Section 6 of spec:
@@ -194,7 +256,7 @@ def generate_prompt(
     return output_file
 
 
-def run_tmux(command: str, name: str, debug: bool = False) -> None:
+def run_tmux(command: str, name: str, context: Dict[str, str], debug: bool = False) -> None:
     """
     Execute command in a new tmux window.
     """
@@ -205,6 +267,10 @@ def run_tmux(command: str, name: str, debug: bool = False) -> None:
     # Create window name with timestamp to avoid collisions
     timestamp = datetime.now().strftime("%H%M%S")
     window_name = f"{name}-{timestamp}"
+
+    # Create environment for tmux
+    env = os.environ.copy()
+    env.update(context)
 
     # Create new tmux window
     tmux_cmd = [
@@ -217,7 +283,7 @@ def run_tmux(command: str, name: str, debug: bool = False) -> None:
         print(f"[TMUX] Running: {' '.join(tmux_cmd)}", file=sys.stderr)
 
     try:
-        subprocess.run(tmux_cmd, check=True)
+        subprocess.run(tmux_cmd, check=True, env=env)
         print(f"✓ Launched '{name}' in tmux window: {window_name}")
     except subprocess.CalledProcessError as e:
         raise LaunchError(f"Failed to create tmux window: {e}")

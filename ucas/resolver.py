@@ -13,17 +13,17 @@ def get_search_paths() -> list:
     """Get search paths in order: Project → User → System."""
     paths = []
 
-    # Project layer: ./.ucas/agents/
-    project_path = Path.cwd() / '.ucas' / 'agents'
+    # Project layer: ./.ucas/mods/
+    project_path = Path.cwd() / '.ucas' / 'mods'
     if project_path.exists():
         paths.append(project_path)
 
-    # User layer: ~/.ucas/agents/
-    user_path = Path.home() / '.ucas' / 'agents'
+    # User layer: ~/.ucas/mods/
+    user_path = Path.home() / '.ucas' / 'mods'
     if user_path.exists():
         paths.append(user_path)
 
-    # System layer: $UCAS_HOME/agents/ or package location
+    # System layer: $UCAS_HOME/mods/ or package location
     ucas_home = os.environ.get('UCAS_HOME')
     if not ucas_home:
         # Default to package installation directory
@@ -31,40 +31,24 @@ def get_search_paths() -> list:
         package_dir = Path(__file__).parent.parent
         ucas_home = str(package_dir)
 
-    system_path = Path(ucas_home) / 'agents'
+    system_path = Path(ucas_home) / 'mods'
     if system_path.exists():
         paths.append(system_path)
 
     return paths
 
 
-def find_entity(name: str, entity_type: str = 'agents') -> Optional[Path]:
+def find_entity(name: str) -> Optional[Path]:
     """
-    Find an entity (agent/mod/ACLI) across layers.
+    Find an entity (agent/mod/ACLI/team) across layers.
     Returns path to entity directory or None.
     First match wins (Project → User → System).
     """
     # Validate entity name - no spaces allowed
     if ' ' in name:
         raise ValueError(f"Entity name '{name}' contains spaces. Entity names must not contain spaces.")
-    if entity_type == 'agents':
-        search_paths = get_search_paths()
-    elif entity_type == 'teams':
-        # Teams have same layer structure but in teams/ subdirs
-        search_paths = []
-        project_path = Path.cwd() / '.ucas' / 'teams'
-        if project_path.exists():
-            search_paths.append(project_path)
-        user_path = Path.home() / '.ucas' / 'teams'
-        if user_path.exists():
-            search_paths.append(user_path)
-        ucas_home = os.environ.get('UCAS_HOME')
-        if ucas_home:
-            system_path = Path(ucas_home) / 'teams'
-            if system_path.exists():
-                search_paths.append(system_path)
-    else:
-        return None
+    
+    search_paths = get_search_paths()
 
     for base_path in search_paths:
         entity_path = base_path / name

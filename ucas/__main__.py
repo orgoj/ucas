@@ -4,12 +4,15 @@ UCAS entry point: python -m ucas
 
 import sys
 from pathlib import Path
-from typing import List
+from typing import List, Dict, Any
 
 from .cli import parse_args
-from .resolver import find_entity, is_acli, load_config
+from .resolver import find_entity, is_acli, load_config, get_layer_config_paths
 from .merger import merge_configs, collect_skills
-from .launcher import select_acli, build_command, run_tmux, LaunchError
+from .launcher import (
+    select_acli, build_command, run_tmux, LaunchError, 
+    prepare_context, HookRunner, get_context_export_str
+)
 
 
 def _prepare_and_run_member(
@@ -18,22 +21,15 @@ def _prepare_and_run_member(
     mods: List[str],
     dry_run: bool,
     debug: bool,
-    prefix: str = ""
+    prefix: str = "",
+    team_name: str = None
 ) -> None:
     """
     Prepare and run a single agent member.
     Shared logic between run_agent and run_team.
-
-    Args:
-        member_name: Name for tmux window
-        agent_name: Name of agent to run
-        mods: List of mod names to apply
-        dry_run: If True, print command instead of executing
-        debug: Enable debug output
-        prefix: Optional prefix for dry-run output (e.g., "[member1] ")
     """
     # Find agent
-    agent_path = find_entity(agent_name, 'agents')
+    agent_path = find_entity(agent_name)
     if not agent_path:
         raise LaunchError(f"Agent '{agent_name}' not found")
 
@@ -43,7 +39,7 @@ def _prepare_and_run_member(
     # Find mods
     mod_paths = []
     for mod_name in mods:
-        mod_path = find_entity(mod_name, 'agents')
+        mod_path = find_entity(mod_name)
         if not mod_path:
             raise LaunchError(f"Mod '{mod_name}' not found")
         mod_paths.append(mod_path)
@@ -53,11 +49,16 @@ def _prepare_and_run_member(
     # Merge configs
     merged_config = merge_configs(agent_path, mod_paths, debug)
 
+    # Prepare context and hooks
+    context = prepare_context(agent_name, agent_path, team_name)
+    hook_runner = HookRunner(context, debug)
+    hooks = merged_config.get('hooks', {})
+
     # Select ACLI
     acli_name = select_acli(merged_config, debug)
 
     # Load ACLI config
-    acli_path = find_entity(acli_name, 'agents')
+    acli_path = find_entity(acli_name)
     if not acli_path:
         raise LaunchError(f"ACLI '{acli_name}' not found")
 
@@ -69,8 +70,8 @@ def _prepare_and_run_member(
     # Collect skills
     skills_dirs = collect_skills(agent_path, mod_paths)
 
-    # Build command
-    command = build_command(
+    # Build main command
+    main_cmd = build_command(
         agent_path,
         mod_paths,
         merged_config,
@@ -79,11 +80,36 @@ def _prepare_and_run_member(
         debug
     )
 
+    # Update context with dynamic info
+    context['UCAS_ACLI_EXE'] = acli_config.get('executable', '')
+    context['UCAS_MAIN_COMMAND'] = main_cmd
+
+    # Chain hooks for tmux execution
+    # Logic: exports && prerun && main_cmd && postrun
+    # Note: Using && means failures stop the chain.
+    all_cmds = [get_context_export_str(context)]
+    
+    prerun = hooks.get('prerun', [])
+    if isinstance(prerun, str): prerun = [prerun]
+    all_cmds.extend(prerun)
+    
+    all_cmds.append(main_cmd)
+    
+    postrun = hooks.get('postrun', [])
+    if isinstance(postrun, str): postrun = [postrun]
+    all_cmds.extend(postrun)
+    
+    # Final command to execute in tmux
+    final_command = ' && '.join(all_cmds)
+
     # Dry-run or execute
     if dry_run:
-        print(f"{prefix}Command: {command}")
+        print(f"{prefix}Command: {final_command}")
     else:
-        run_tmux(command, member_name, debug)
+        # Run install hooks in host environment first
+        hook_runner.run(hooks, 'install')
+        
+        run_tmux(final_command, member_name, context, debug)
 
 
 def main():
@@ -113,57 +139,93 @@ def main():
 
 def run_agent(args):
     """Run a single agent with optional mods."""
+    name = args.agent
+    cli_mods = args.mods or []
+
+    entity_path = find_entity(name)
+    if not entity_path:
+        raise LaunchError(f"Agent/Mod '{name}' not found in mods/ library.")
+
+    if args.debug:
+        print(f"[DEBUG] Found entity on disk: {entity_path}", file=sys.stderr)
+
+    mod_paths = []
+    for mod_name in cli_mods:
+        m_path = find_entity(mod_name)
+        if not m_path:
+            raise LaunchError(f"Mod '{mod_name}' not found")
+        mod_paths.append(m_path)
+
+    # Note: run_agent strictly runs a single member. 
+    # If the entity is a team, it will still just run its 'base' personality if it has one.
     _prepare_and_run_member(
-        member_name=args.agent,
-        agent_name=args.agent,
-        mods=args.mods or [],
+        member_name=name,
+        agent_name=name,
+        mods=cli_mods,
         dry_run=args.dry_run,
         debug=args.debug
     )
 
 
-def run_team(args):
-    """Run a team of agents."""
+def run_config_team(team_name: str, team_def: Dict[str, Any], cli_mods: List[str], args):
+    """Execution logic for a team defined in configuration."""
     import time
 
-    # Find team
-    team_path = find_entity(args.team, 'teams')
-    if not team_path:
-        raise LaunchError(f"Team '{args.team}' not found")
-
-    if args.debug:
-        print(f"[DEBUG] Found team: {team_path}", file=sys.stderr)
-
-    # Load team config
-    team_config = load_config(team_path)
-
-    members = team_config.get('members', {})
+    # User's example uses 'agents' key for members
+    members = team_def.get('agents') or team_def.get('members')
     if not members:
-        raise LaunchError(f"Team '{args.team}' has no members defined")
+        raise LaunchError(f"Team '{team_name}' has no agents/members defined")
 
-    sleep_seconds = team_config.get('sleep_seconds', 0)
+    team_wide_mods = team_def.get('mods', [])
+    sleep_seconds = team_def.get('sleep_seconds', 0)
 
     # Run each member
     member_names = list(members.keys())
     for idx, member_name in enumerate(member_names):
         member_spec = members[member_name]
-        agent_name = member_spec.get('agent')
-        if not agent_name:
-            raise LaunchError(f"Team member '{member_name}' has no agent specified")
+        
+        # "Only Mods" philosophy: member definition is primarily defined by its mods.
+        # karel: [basic-chat, api-mod] OR karel: { mods: [basic-chat], ... }
+        if isinstance(member_spec, list):
+            base_agent = member_spec[0]
+            member_mods = member_spec[1:]
+        elif isinstance(member_spec, str):
+            base_agent = member_spec
+            member_mods = []
+        elif isinstance(member_spec, dict):
+            # Look for 'mods' first (Unified approach), fallback to 'agent' (Legacy)
+            agent_list = member_spec.get('mods') or member_spec.get('agent')
+            if not agent_list:
+                raise LaunchError(f"Team member '{member_name}' has no mods/agent specified")
+            
+            if isinstance(agent_list, list):
+                base_agent = agent_list[0]
+                member_mods = agent_list[1:]
+            else:
+                base_agent = agent_list
+                # If they used 'agent: string', check if they also have 'mods: list' (legacy)
+                if 'agent' in member_spec and isinstance(member_spec.get('mods'), list):
+                    member_mods = member_spec['mods']
+                else:
+                    member_mods = []
+        else:
+            raise LaunchError(f"Invalid member definition for '{member_name}'")
 
-        mods = member_spec.get('mods', [])
+        # Total Aggregated Mods
+        all_mods = team_wide_mods + cli_mods + member_mods
 
         if args.debug:
-            print(f"[TEAM] Running member '{member_name}': {agent_name} +{' +'.join(mods) if mods else '(no mods)'}", file=sys.stderr)
+            print(f"[TEAM] Member '{member_name}': {base_agent} +{' +'.join(all_mods) if all_mods else '(no mods)'}", file=sys.stderr)
 
         # Prepare and run member
         _prepare_and_run_member(
             member_name=member_name,
-            agent_name=agent_name,
-            mods=mods,
+            agent_name=base_agent,
+            mods=all_mods,
             dry_run=args.dry_run,
             debug=args.debug,
-            prefix=f"[{member_name}] "
+            prefix=f"[{member_name}] ",
+            team_name=team_name
         )
 
         # Sleep between starts (except after last member)
@@ -172,6 +234,54 @@ def run_team(args):
             if args.debug:
                 print(f"[TEAM] Sleeping {sleep_seconds}s before next member...", file=sys.stderr)
             time.sleep(sleep_seconds)
+
+
+def run_team(args):
+    """Run a team of agents (Config-First)."""
+    name = args.team
+    
+    # 1. Base Merge (System -> User -> Project)
+    # Teams can be defined in any of these layers.
+    (system_paths, user_paths, project_paths) = get_layer_config_paths()
+    
+    # We need a horizontal merge of ALL ucas.yaml files found in layers
+    # to see the full 'teams' dictionary.
+    base_config = {}
+    
+    # Order: System -> User -> Project (later overrides earlier)
+    for pair in [system_paths, user_paths, project_paths]:
+        config_path = pair[0]
+        if config_path and config_path.exists():
+            if args.debug:
+                print(f"[DEBUG] Loading team config from: {config_path}", file=sys.stderr)
+            from .merger import _merge_dicts # Internal helper for base merge
+            from .yaml_parser import parse_yaml
+            try:
+                layer_data = parse_yaml(config_path.read_text())
+                base_config = _merge_dicts(base_config, layer_data, args.debug, str(config_path))
+            except Exception as e:
+                if args.debug:
+                    print(f"Warning: Failed to load {config_path}: {e}", file=sys.stderr)
+
+    # 2. Check 'teams' section in merged config
+    teams = base_config.get('teams', {})
+    if name in teams:
+        if args.debug:
+            print(f"[TEAM] Found in config: {name}", file=sys.stderr)
+        run_config_team(name, teams[name], [], args)
+        return
+
+    # 3. Check if name refers to a mod directory that defines a team
+    entity_path = find_entity(name)
+    if entity_path:
+        mod_config = load_config(entity_path)
+        if 'agents' in mod_config or 'members' in mod_config:
+            if args.debug:
+                print(f"[TEAM] Found as mod directory: {entity_path}", file=sys.stderr)
+            run_config_team(name, mod_config, [], args)
+            return
+
+    raise LaunchError(f"Team '{name}' not found in 'teams' config section or as a team-mod directory.")
 
 
 if __name__ == '__main__':

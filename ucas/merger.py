@@ -98,6 +98,45 @@ def _merge_dicts(base: Dict[str, Any], overlay: Dict[str, Any], debug: bool, lay
                     result[key] = value
             else:
                 result[key] = value
+        elif key == 'teams':
+            # Aggregate teams (don't overwrite)
+            if key in result:
+                if isinstance(result[key], dict) and isinstance(value, dict):
+                    # Merge teams dictionary: later layers overwrite SAME team, 
+                    # but accumulate NEW teams.
+                    merged_teams = result[key].copy()
+                    for team_name, team_def in value.items():
+                        if team_name in merged_teams and isinstance(merged_teams[team_name], dict) and isinstance(team_def, dict):
+                            # Deep merge individual team definition too? 
+                            # KISS: Lexical override of the whole team is easier to predict,
+                            # but let's do a basic nested merge for better flexibility.
+                            merged_teams[team_name] = _merge_dicts(merged_teams[team_name], team_def, debug, f"{layer_name}.teams.{team_name}")
+                        else:
+                            merged_teams[team_name] = team_def
+                    result[key] = merged_teams
+                else:
+                    result[key] = value
+            else:
+                result[key] = value
+        elif key == 'hooks':
+            # Aggregate hooks (don't overwrite)
+            if key in result:
+                if isinstance(result[key], dict) and isinstance(value, dict):
+                    # Merge hooks: aggregate values for each lifecycle stage
+                    merged_hooks = result[key].copy()
+                    for stage, cmds in value.items():
+                        if stage in merged_hooks:
+                            # Convert both to lists and concatenate
+                            base_cmds = merged_hooks[stage] if isinstance(merged_hooks[stage], list) else [merged_hooks[stage]]
+                            over_cmds = cmds if isinstance(cmds, list) else [cmds]
+                            merged_hooks[stage] = base_cmds + over_cmds
+                        else:
+                            merged_hooks[stage] = cmds
+                    result[key] = merged_hooks
+                else:
+                    result[key] = value
+            else:
+                result[key] = value
         elif isinstance(value, dict) and isinstance(result.get(key), dict):
             # Recursively merge dicts
             result[key] = _merge_dicts(result[key], value, debug, layer_name)

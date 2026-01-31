@@ -12,6 +12,25 @@ The system must handle everything else automatically: find the default team, ins
 
 ---
 
+## Concept change [COMPLETED]
+
+All is mod concept:
+- [x] team je definice v ucas.yaml v sekci teams (v projektu, u uživatele nebo v modu) (consolidated to mods/ directory)
+- [x] tmux spusteni je mod, ktere ma v yaml template por spusteni
+- [x] acli je mod zase neco specialmi
+- [x] nejaka obecna definice co mod umi - treba
+- [x] memory je mod a muzou byt ruzne reseni
+- [x] primarni memory agenta musi byt projektu
+  - [x] do jeho sdilene se nesmi dostat privatni veci z projektu
+- [x] mod musi mit moznost hook - ucas ma byt jen platforma co ty hook umozni
+  - [x] install
+  - [x] upgrade (conceptually supported via hooks, though upgrade command not yet implemented)
+  - [x] prerun
+  - [x] postrun
+  - [ ] clean?
+  - [ ] daily?
+  - [ ] mozna nejake podle typu klienta (conpact...)
+
 ## Analyze
 
 - docs/GROK_DISCUSION.md

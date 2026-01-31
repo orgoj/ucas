@@ -1,0 +1,6 @@
+name: test-mod
+description: Verification mod for hooks and env context
+hooks:
+  install: "echo 'INSTALLING test-mod'"
+  prerun: "echo 'PRERUN: Agent is $UCAS_AGENT in $UCAS_AGENT_NOTES'"
+  postrun: "echo 'POSTRUN: Mission accomplished in $UCAS_PROJECT_ROOT'"
