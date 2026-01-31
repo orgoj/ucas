@@ -1,5 +1,48 @@
 # UCAS - Universal CLI Agent System
 
+### Core Philosophy & Goal
+
+UCAS (Universal CLI Agent System) is built on the **"Keep It Simple, Stupid" (KISS)** principle. Its primary goal is to provide a straightforward, vendor-agnostic way to define, run, and share conversational AI agents and teams.
+
+The project was born out of frustration with the current landscape of agent CLIs, each with its own proprietary skill marketplaces, configuration formats, and limitations. UCAS aims to be the "glue" that binds them, focusing on three key areas:
+
+1.  **Portability and Reusability**: Agents and teams are defined in a simple, human-readable `ucas.yaml` format. This allows entire agent/team setups to be archived, shared, and version-controlled with ease.
+2.  **Zero-Friction Automation**: The system is designed to automate as much of the setup process as possible, eliminating manual steps and ensuring consistency.
+3.  **Flexible Orchestration**: Easily run single agents, agents with modifications ("mods"), or complex multi-agent "teams" in a coordinated manner.
+
+By standardizing the definition and launch process, UCAS enables developers to build and reuse agent configurations across different projects and platforms without being locked into a single vendor's ecosystem.
+
+---
+
+### Primary Use Case: One-Command Developer Onboarding
+
+The power of UCAS's automation is best illustrated by the developer onboarding scenario. The goal is to get a new team member productive immediately through a "clone and go" workflow:
+
+1.  A developer installs the `ucas` binary (a single, one-time setup).
+2.  They clone a project repository managed by UCAS.
+3.  They run a single command: `ucas start`.
+
+This one command triggers the full automation pipeline: UCAS discovers all required agents for the project, automatically fetches any that are missing from local or remote sources (like a corporate git repository), and runs each agent's self-initialization process to install its dependencies.
+
+The result is a perfectly replicated, fully-functional development environment identical to everyone else's on the team, achieved with zero manual configuration within the project.
+
+---
+
+### Scenario 2: Bootstrapping a New Project with a Shared Team
+
+UCAS also accelerates the creation of new projects. Instead of building from scratch, you can leverage a library of pre-defined, shareable teams:
+
+1.  Start a new project: `mkdir my-new-app && cd my-new-app`.
+2.  Find a public or private repository containing a UCAS team definition (e.g., `github.com/some-org/ucas-dev-team`).
+3.  Add this team to your project with a simple command, like `ucas team-add github.com/some-org/ucas-dev-team`.
+4.  Run `ucas start`.
+
+Just as in the first scenario, UCAS takes over. It downloads the team definition, fetches all the specified agents, and runs their initial setup. In minutes, you have a sophisticated, multi-agent system running in your new project, ready for customization.
+
+This workflow makes it possible to create and share team definitions for any purpose—be it open-source, internal corporate use, or personal projects—drastically reducing the time it takes to start a new endeavor.
+
+---
+
 **UCAS** is an intelligent assembler and launcher that finds Agent/Mod/ACLI definitions, merges them via "Sandwich Merge", and executes in tmux.
 
 ## Quick Start
@@ -69,7 +112,27 @@ ucas/
 
 ## Configuration Layers
 
-UCAS uses an 11-layer "Sandwich Merge" system:
+UCAS uses a multi-layer "Sandwich Merge" system to build the final configuration. Layers are applied from bottom to top, with later layers overriding earlier ones.
+
+```
+      ▲  TOP (Overrides - Highest Priority)
+      │
+  [ Project Override: ./.ucas/ucas-override.yaml ]
+  [ User Override:    ~/.ucas/ucas-override.yaml    ]
+  [ System Override:  $UCAS_HOME/ucas-override.yaml ]
+      │
+//---- Final Merged Config is Assembled Here ----\\\\
+      │
+  [ Mod N:            path/to/mod_n/ucas.yaml       ]
+  [ ...                                             ]
+  [ Mod 1:            path/to/mod_1/ucas.yaml       ]
+  [ Agent:            path/to/agent/ucas.yaml       ]
+  [ Project Default:  ./.ucas/ucas.yaml             ]
+  [ User Default:     ~/.ucas/ucas.yaml             ]
+  [ System Default:   $UCAS_HOME/ucas.yaml          ]
+      │
+      ▼  BOTTOM (Defaults - Lowest Priority)
+```
 
 **Bottom Layers (defaults):**
 1. `$UCAS_HOME/ucas.yaml` - System defaults (defaults to package location)
@@ -181,6 +244,28 @@ members:
 3. **First match wins** - Entity search stops at first found (Project → User → System)
 4. **Last wins merge** - Dict keys overwritten by later layers
 5. **Skills aggregated** - All `skills/` directories collected and passed
+
+## Roadmap
+
+UCAS is actively developed. Here are some of the key features and improvements planned for the near future, reflecting the project's goal of total automation:
+
+-   **Enhanced CLI Commands:**
+    -   `ucas init`: To quickly scaffold a `.ucas` directory and configuration in a new project.
+    -   `ucas status`: To display a summary of the project's configuration, resolved paths, and available agents/teams.
+    -   `ucas list-agents` / `ucas list-teams`: To discover available entities.
+    -   `ucas team-add <repo>`: To easily import team definitions from remote repositories.
+
+-   **Automatic Agent Installation:**
+    -   Agents will be able to define their own dependencies and installation steps.
+    -   On first run, `ucas` will trigger an agent's self-initialization process, fully automating its setup.
+
+-   **Smarter Team Management:**
+    -   Team definitions will support specifying agent sources (e.g., Git repositories), allowing `ucas` to automatically clone them if they are not found locally.
+    -   A pre-flight check will validate a team's integrity before launching.
+
+-   **Policy and Security:**
+    -   Configuration options like `allow_agents` and `deny_agents` to enforce policies on which agents are permitted to run.
+    -   Allow install
 
 ## License
 
