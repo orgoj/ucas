@@ -1,0 +1,106 @@
+# Analysis of AutoGen
+
+*   **URL:** [https://microsoft.github.io/autogen/](https://microsoft.github.io/autogen/)
+*   **GitHub:** [https://github.com/microsoft/autogen](https://github.com/microsoft/autogen)
+*   **License:** MIT
+
+---
+
+### Comparison with UCAS Requirements
+
+**Fulfills:**
+*   **A. Complex orchestration:** One of the most advanced frameworks for multi-agent conversations and coordinated task solving.
+*   **D. Definition of teams:** Native support for "Group Chats" and complex hierarchical or sequential agent topologies.
+*   **G. License and price:** Open source under the MIT license.
+*   **I. Maximální volnost exekuce:** Highly flexible in terms of "Code Executor" classes. Can execute code in local shells, Docker containers, or Jupyter notebooks.
+
+**Fails:**
+*   **B. Simple onboarding:** Onboarding is notoriously complex. Requires setting up Python environments, specific API keys, and often Docker for safe code execution. Not a "git clone + one command" experience without significant boilerplate.
+*   **C. Configuration in repo:** While code is in the repo, the "orchestration logic" is often hard-coded in Python scripts rather than being defined in simple, layered YAML configuration files for non-programmers.
+*   **E. Dynamic composition:** Lacks the `agent + mod` dynamic CLI parameter aggregation. Composition happens at the code level, not the CLI level.
+*   **F. Independence from payment model:** Deeply tied to the "per-use" API model (OpenAI, etc.). While it supports local LLMs, it doesn't provide native management for subscription-based CLI tools.
+*   **H. Systémová stopa (Footprint):** Very heavy. Requires a full Python stack and often a running Docker daemon for local code execution.
+
+---
+
+### Quick Summary
+
+AutoGen is a framework that enables the development of LLM applications using multiple agents that can converse with each other to solve tasks. It allows for complex workflows where agents can be customized, conversation patterns can be defined, and agents can autonomously execute code to verify their solutions.
+
+#### Key Characteristics:
+*   **Multi-Agent Conversations:** Agents "talk" to each other like humans in a group chat to solve a problem.
+*   **Customizable Agents:** Each agent can be configured with specific roles, instructions, and tools.
+*   **Human-in-the-Loop:** Seamlessly integrates human feedback into the agent conversation.
+*   **Autonomous Code Execution:** Agents can write and run code to perform actions or verify results.
+*   **Complex Topologies:** Supports various interaction patterns (1-to-1, group chat, hierarchical).
+
+---
+
+### Detailed Description
+
+#### The Paradigm Shift: Conversation as Orchestration
+
+AutoGen, developed by researchers at Microsoft, introduced a groundbreaking idea: complex tasks can be solved better by a group of specialized agents chatting with each other than by a single large agent. This "Conversation-Centric Orchestration" is the core of AutoGen's philosophy. 
+
+Instead of writing complex logic to handle every edge case, you define a set of agents—for example, a "Coder," a "Reviewer," and a "Manager"—and let them interact. The Coder writes the code, the Reviewer points out bugs, and the Manager decides when the task is finished. This mimics human team dynamics and often leads to more robust solutions for open-ended problems.
+
+#### Architecture: Agents and Conversation Patterns
+
+The AutoGen architecture is built around two main concepts: **Agents** and **Conversable Interfaces**.
+
+1.  **Agents**: Every actor in AutoGen is an agent. There are `AssistantAgents` (LLM-powered), `UserProxyAgent` (representing the user or a code executor), and custom agents. Each agent has its own system prompt and tools.
+2.  **Conversation Patterns**: This defines *how* the agents talk. 
+    - **Group Chat**: Many agents in a single room where a "Chat Manager" decides who speaks next.
+    - **Sequential Chat**: Agent A talks to Agent B, then the result is passed to Agent C.
+    - **Nested Chats**: An agent can "consult" a sub-team before replying to the main conversation.
+
+This flexibility allows for incredibly complex "Team Definitions" (Requirement D), but it is almost entirely defined in Python code. This contrasts with UCAS's goal of using declarative YAML files to define teams and their behaviors.
+
+#### The Code Executor: Bridging LLM to OS
+
+One of AutoGen's most powerful features is its built-in code execution. When an agent outputs a code block (e.g., in Python or Bash), a "Proxy Agent" can automatically execute that code and return the output back into the conversation.
+
+This execution can happen in:
+- **Local Shell**: Fast but dangerous, as it can modify the host system.
+- **Docker**: Safe and isolated, which is the recommended approach for production.
+- **Jupyter**: Good for data science workflows.
+
+This aligns with UCAS's Requirement I regarding execution freedom. However, AutoGen's executors are primarily designed to run code *generated by LLMs* rather than to act as a generic wrapper for *existing processes* in the way UCAS aims to (e.g., running a pre-existing tmux session with a specific wrapper).
+
+#### Complexity and Onboarding (Requirement B)
+
+Despite its power, AutoGen is difficult to "onboard" for a new project. A typical AutoGen script requires:
+- Initializing multiple LLM configurations.
+- Defining the system prompts for each agent.
+- Setting up the group chat manager.
+- Configuring the code executor.
+- Handling API rate limits and errors.
+
+There is no "standard" way to pack an AutoGen project so that someone else can just `git clone` and run a single command to see it work. It feels more like a library for building apps than a distribution/execution system like UCAS.
+
+#### Footprint and Dependencies (Requirement H)
+
+AutoGen is "heavy." It depends on a large Python environment with many dependencies (OpenAI, Pydantic, etc.). If you want safe code execution, you also need Docker. For a developer who wants a "lightweight" tool that doesn't pollute their system, AutoGen's requirements can be a major barrier. UCAS's focus on a minimal binary approach and "clean" local execution is a direct alternative to this "heavy framework" model.
+
+#### The Lack of Dynamic Composition (Requirement E)
+
+In AutoGen, if you want an agent to have a new "skill" or a "mod," you edit the Python code that defines that agent's system prompt or toolset. There is no native concept of "I want to run this AutoGen team but add the 'security-mod' to everyone" via a CLI command. This dynamic, runtime composition is the "Semantic Skladatel" part of UCAS that is largely missing from AutoGen.
+
+#### Comparison with UCAS Summary
+
+| Feature | AutoGen | UCAS (Vision) |
+| :--- | :--- | :--- |
+| **Logic Definition** | Python Code | Declarative YAML |
+| **Interaction** | Multi-agent Chat | Process Orchestration |
+| **Onboarding** | High Complexity | One-command Setup |
+| **Target User** | AI Developers | CLI Power Users / Ops |
+
+#### Summary of Analysis
+
+AutoGen is a state-of-the-art framework for building complex multi-agent systems via LLM conversations. Its ability to solve problems through agent interaction and autonomous code execution is remarkable. However, it is fundamentally a developer library rather than a CLI-first execution and composition system.
+
+Its high onboarding complexity, heavy system footprint, and "code-first" approach to configuration make it less suitable for the fast-paced, repo-centric, and dynamic workflows that UCAS aims to enable. UCAS occupies the space of a "CLI-native orchestrator," whereas AutoGen is a "logic-native framework."
+
+#### Technical Deep Dive: Group Chat Management
+
+The AutoGen `GroupChatManager` is a sophisticated piece of software. It uses an LLM to decide—based on the conversation history—which agent is best suited to speak next. It can also follow pre-defined transition rules (e.g., "Always let the Reviewer speak after the Coder"). While this is powerful, it is also non-deterministic and can sometimes lead to conversation loops or incorrect agent transitions. UCAS's approach to orchestration is likely to be more "deterministic" and "structural," which is often preferred for reliable command-line tools and production pipelines.

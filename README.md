@@ -10,6 +10,10 @@ The project was born out of frustration with the current landscape of agent CLIs
 2.  **Zero-Friction Automation**: The system is designed to automate as much of the setup process as possible, eliminating manual steps and ensuring consistency.
 3.  **Flexible Orchestration**: Easily run single agents, agents with modifications ("mods"), or complex multi-agent "teams" in a coordinated manner.
 
+> [!IMPORTANT]
+> **The UCAS Differentiator: Dynamic CLI Composition**
+> Unlike any other tool, UCAS allows **ad-hoc behavior modification** at the command line. Run `ucas run generic +git +webresearch` and the system dynamically aggregates the models, parameters, environment variables, and skills at execution time. No need to modify a single configuration file to experiment with different agent capabilities.
+
 By standardizing the definition and launch process, UCAS enables developers to build and reuse agent configurations across different projects and platforms without being locked into a single vendor's ecosystem.
 
 ---
@@ -152,6 +156,18 @@ UCAS uses a multi-layer "Sandwich Merge" system to build the final configuration
 - This means UCAS_HOME is **optional** - it auto-discovers system agents
 
 ## Key Features
+
+### 🚀 Dynamic CLI Composition (Killer Feature)
+UCAS stands alone in its ability to compose behaviors at the command line. Instead of creating 50 different config files for every permutation of skills, you maintain small, focused components and layer them as needed:
+
+```bash
+# Ad-hoc skill aggregation:
+ucas run generic +git +webresearch
+```
+UCAS dynamically merges the system prompts, aggregates tool directories, and maps environmental variables from all components into the final process.
+
+### 🛡️ Execution Wrappers (Freedom of Transport)
+UCAS treats the execution environment as a first-class citizen. Want to run an agent in a specific `tmux` pane, over an `ssh` tunnel, or inside a temporary `docker` container? Just specify the wrapper in your configuration layering.
 
 ### Model Mapping
 ACLIs translate agent's `requested_model` to supported models:
