@@ -12,6 +12,15 @@ The system must handle everything else automatically: find the default team, ins
 
 ---
 
+## Analyze
+
+- docs/GROK_DISCUSION.md
+- https://github.com/awslabs/cli-agent-orchestrator - tmux, ma to daemon a resi to messaging (asi napise na tmux), resi stav klienta
+- https://docs.crewai.com/
+
+
+---
+
 ## Tier 1: Core CLI Functionality
 These commands are essential for basic project management and introspection.
 
