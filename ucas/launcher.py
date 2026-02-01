@@ -113,7 +113,6 @@ class HookRunner:
             except subprocess.CalledProcessError as e:
                 raise LaunchError(f"Hook '{stage}' failed: {cmd} (exit code {e.returncode})")
 
-
 def select_acli(merged_config: Dict[str, Any], debug: bool = False) -> str:
     """
     Select ACLI based on simplified logic:
@@ -153,6 +152,37 @@ def select_acli(merged_config: Dict[str, Any], debug: bool = False) -> str:
         return acli
 
     raise LaunchError("No ACLI found: no override_acli, acli.name, or allowed_acli")
+
+
+def select_run_mod(merged_config: Dict[str, Any], debug: bool = False) -> str:
+    """
+    Select run mod based on logic:
+    1. override_run → veto power
+    2. Check if this is a run-mod definition (has run.name)
+    3. Use first allowed_run as default
+    """
+    if 'override_run' in merged_config:
+        run_mod = merged_config['override_run']
+        if debug:
+            print(f"[RUN] Using override_run: {run_mod}", file=sys.stderr)
+        return run_mod
+
+    run_def = merged_config.get('run', {})
+    if 'name' in run_def:
+        run_name = run_def['name']
+        if debug:
+            print(f"[RUN] This is a run-mod definition: {run_name}", file=sys.stderr)
+        return run_name
+
+    allowed = merged_config.get('allowed_run', [])
+    if allowed:
+        run_mod = allowed[0]
+        if debug:
+            print(f"[RUN] Using default run-mod: {run_mod}", file=sys.stderr)
+        return run_mod
+
+    # Default fallback if nothing else is specified
+    return "run-bash"
 
 
 def translate_model(requested_model: Optional[str], acli_def: Dict[str, Any], debug: bool = False) -> Optional[str]:
@@ -323,34 +353,126 @@ def generate_prompt(
     return output_file
 
 
-def run_tmux(command: str, name: str, context: Dict[str, str], debug: bool = False) -> None:
+def run_command(run_def: Dict[str, Any], cmd: str, member_name: str, context: Dict[str, str], run_dir: Path, debug: bool = False) -> None:
     """
-    Execute command in a new tmux window.
+    Execute final command using run-mod definition.
+    Supports: script, executable, template.
     """
-    # Verify tmux exists
-    if not shutil.which('tmux'):
-        raise LaunchError("tmux not found. Please install tmux to run agents.")
-
-    # Create window name with timestamp to avoid collisions
-    timestamp = datetime.now().strftime("%H%M%S")
-    window_name = f"{name}-{timestamp}"
-
-    # Create environment for tmux
+    # Create environment
     env = os.environ.copy()
     env.update(context)
+    env['UCAS_RUN_DIR'] = str(run_dir.resolve())
 
-    # Create new tmux window
-    tmux_cmd = [
-        'tmux', 'new-window',
-        '-n', window_name,
-        command
-    ]
+    # Build command parts
+    final_cmd_parts = []
+    
+    script = run_def.get('script')
+    executable = run_def.get('executable')
+    template = run_def.get('template')
+
+    if script:
+        script_path = Path(script)
+        if not script_path.is_absolute():
+            script_path = (run_dir / script_path).resolve()
+            
+        if script_path.suffix == '.py':
+            final_cmd_parts = [sys.executable, str(script_path)]
+        else:
+            final_cmd_parts = [str(script_path)]
+            
+        # Append data as CLI arguments
+        final_cmd_parts.extend(get_run_args(cmd, member_name, context))
+    elif executable:
+        exe_path = Path(executable)
+        if not exe_path.is_absolute() and executable.startswith('./'):
+            exe_path = (run_dir / exe_path).resolve()
+        
+        final_cmd_parts = [str(exe_path)]
+        final_cmd_parts.extend(get_run_args(cmd, member_name, context))
+    elif template:
+        # Lightweight shell template
+        expanded_cmd = expand_run_template(template, cmd, member_name, context)
+        if debug:
+            print(f"[EXEC] Running template: {expanded_cmd}", file=sys.stderr)
+        
+        try:
+            subprocess.run(expanded_cmd, shell=True, check=True, env=env)
+            return
+        except subprocess.CalledProcessError as e:
+            raise LaunchError(f"Template execution failed: {e}")
+    else:
+        raise LaunchError("Run-mod definition missing 'script', 'executable', or 'template'")
 
     if debug:
-        print(f"[TMUX] Running: {' '.join(tmux_cmd)}", file=sys.stderr)
+        print(f"[EXEC] Running: {' '.join(shlex.quote(p) for p in final_cmd_parts)}", file=sys.stderr)
 
     try:
-        subprocess.run(tmux_cmd, check=True, env=env)
-        print(f"✓ Launched '{name}' in tmux window: {window_name}")
+        subprocess.run(final_cmd_parts, check=True, env=env)
     except subprocess.CalledProcessError as e:
-        raise LaunchError(f"Failed to create tmux window: {e}")
+        raise LaunchError(f"Command execution failed: {e}")
+
+
+def get_run_args(cmd: str, member_name: str, context: Dict[str, str]) -> List[str]:
+    """Return common arguments for run-mod scripts."""
+    project_root = Path(context['UCAS_PROJECT_ROOT'])
+    team_name = context.get('UCAS_TEAM', '')
+    
+    session_name = project_root.name
+    if team_name:
+        session_name = f"{session_name}-{team_name}"
+        
+    timestamp = datetime.now().strftime("%H%M%S")
+    window_name = f"{member_name}-{timestamp}"
+
+    return [
+        '--cmd', cmd,
+        '--agent', context['UCAS_AGENT'],
+        '--team', team_name,
+        '--project-root', context['UCAS_PROJECT_ROOT'],
+        '--session-id', context['UCAS_SESSION_ID'],
+        '--session-name', session_name,
+        '--window-name', window_name
+    ]
+
+
+def expand_run_template(template: str, cmd: str, member_name: str, context: Dict[str, str]) -> str:
+    """
+    Expand run template with context and command variables.
+    Supports: {cmd}, {agent}, {team}, {project_root}, {session_id}, {window_name}, {session_name}
+    """
+    project_root_path = Path(context['UCAS_PROJECT_ROOT'])
+    project_name = project_root_path.name
+    team_name = context.get('UCAS_TEAM', '')
+    
+    # Session name: project-team or just project
+    session_name = project_name
+    if team_name:
+        session_name = f"{project_name}-{team_name}"
+    
+    timestamp = datetime.now().strftime("%H%M%S")
+    window_name = f"{member_name}-{timestamp}"
+
+    replacements = {
+        '{cmd}': cmd,
+        '{agent}': context['UCAS_AGENT'],
+        '{team}': team_name,
+        '{project_root}': context['UCAS_PROJECT_ROOT'],
+        '{session_id}': context['UCAS_SESSION_ID'],
+        '{window_name}': window_name,
+        '{session_name}': session_name
+    }
+    
+    result = template
+    for placeholder, value in replacements.items():
+        # Handle {cmd} specially to avoid unwanted expansions if it contains {}
+        if placeholder == '{cmd}':
+            continue
+        result = result.replace(placeholder, str(value))
+    
+    # Replace {cmd} last
+    result = result.replace('{cmd}', cmd)
+    
+    # Expand environment variables
+    result = os.path.expandvars(result)
+    
+    return result

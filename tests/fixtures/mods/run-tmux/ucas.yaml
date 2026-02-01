@@ -1,0 +1,7 @@
+run:
+  name: run-tmux
+  template: |
+    if ! tmux has-session -t "{session_name}" 2>/dev/null; then
+      tmux new-session -d -s "{session_name}"
+    fi
+    tmux new-window -t "{session_name}" -n "{window_name}" "{cmd}"

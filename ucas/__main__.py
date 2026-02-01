@@ -7,13 +7,17 @@ from pathlib import Path
 from typing import List, Dict, Any, Tuple
 
 from .cli import parse_args
-from .resolver import find_entity, is_acli, load_config, get_layer_config_paths, get_search_paths, get_acli_config
+from .launcher import (
+    select_acli, build_command, run_command, LaunchError, 
+    prepare_context, HookRunner, get_context_export_str,
+    select_run_mod, expand_run_template
+)
+from .resolver import (
+    find_entity, is_acli, load_config, get_layer_config_paths, 
+    get_search_paths, get_acli_config, is_run_mod, get_run_config
+)
 from .merger import merge_configs, collect_skills, _merge_dicts
 from .yaml_parser import parse_yaml
-from .launcher import (
-    select_acli, build_command, run_tmux, LaunchError, 
-    prepare_context, HookRunner, get_context_export_str
-)
 
 
 def resolve_entities(agent_name: str, mods: List[str], debug: bool = False) -> Tuple[Path, List[Path]]:
@@ -164,14 +168,30 @@ def _prepare_and_run_member(
     # Final command to execute in tmux
     final_command = ' && '.join(all_cmds)
 
+    # Select run-mod
+    run_name = select_run_mod(merged_config, debug)
+    
+    # Resolve run-mod config
+    run_path = find_entity(run_name)
+    if not run_path:
+        raise LaunchError(f"Run-mod '{run_name}' not found")
+    
+    run_config_full = load_config(run_path)
+    run_def = get_run_config(run_config_full)
+
+    # Expand run template
+    # (Removed expansion from here, it's now internal to launcher.run_command)
+
     # Dry-run or execute
     if dry_run:
-        print(f"{prefix}Command: {final_command}")
+        # For dry-run, we still want to show what would be executed
+        # We can call a simplified version or just show the run name
+        print(f"{prefix}Run-mod: {run_name} (targeting: {final_command})")
     else:
         # Run install hooks in host environment first
         hook_runner.run(hooks, 'install')
         
-        run_tmux(final_command, member_name, context, debug)
+        run_command(run_def, final_command, member_name, context, run_path, debug)
 
 
 def main():

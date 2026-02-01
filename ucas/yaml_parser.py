@@ -93,6 +93,9 @@ class YAMLParser:
         if not value_str:
             # Value on next lines (nested dict or list)
             value = self._parse_nested(base_indent)
+        elif value_str == '|':
+            # Multiline string
+            value = self._parse_multiline_string(base_indent)
         elif value_str.startswith('['):
             # Flow list
             value = self._parse_flow_list(value_str)
@@ -194,6 +197,37 @@ class YAMLParser:
             self.line_idx += 1
 
         return result
+
+    def _parse_multiline_string(self, parent_indent: int) -> str:
+        """Parse a multiline string starting with |."""
+        self.line_idx += 1
+        lines = []
+        base_indent = -1
+
+        while self.line_idx < len(self.lines):
+            line = self.lines[self.line_idx]
+            
+            # Skip empty lines
+            if not line.strip():
+                lines.append("")
+                self.line_idx += 1
+                continue
+                
+            indent = self._get_indent(line)
+            if indent <= parent_indent:
+                # Back to parent level
+                self.line_idx -= 1
+                break
+            
+            if base_indent == -1:
+                base_indent = indent
+            
+            # Add line stripped of base indentation
+            lines.append(line[base_indent:])
+            self.line_idx += 1
+            
+        # Join lines and rstrip to remove extra newlines at end
+        return "\n".join(lines).rstrip()
 
     def _parse_flow_list(self, text: str) -> List[Any]:
         """Parse flow-style list: [a, b, c]."""

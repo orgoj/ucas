@@ -95,12 +95,30 @@ def is_acli(entity_path: Path) -> bool:
         return False
 
 
+def is_run_mod(entity_path: Path) -> bool:
+    """Check if entity is a run mod (has 'run' block)."""
+    config_file = entity_path / 'ucas.yaml'
+    if not config_file.exists():
+        return False
+
+    try:
+        config = parse_yaml(config_file.read_text())
+        return 'run' in config
+    except Exception:
+        return False
+
+
 def get_acli_config(config: Dict[str, Any]) -> Dict[str, Any]:
     """Extract ACLI configuration, supporting both nested and flat structures."""
     if 'acli' in config:
         return config['acli']
     # Backward compatibility: return config itself if flat structure
     return config
+
+
+def get_run_config(config: Dict[str, Any]) -> Dict[str, Any]:
+    """Extract run configuration."""
+    return config.get('run', {})
 
 
 def load_config(entity_path: Path) -> dict:

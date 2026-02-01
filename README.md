@@ -211,8 +211,17 @@ ucas run generic +git +webresearch
 ```
 UCAS dynamically merges the system prompts, aggregates tool directories, and maps environmental variables from all components into the final process.
 
-### 🛡️ Execution Wrappers (Freedom of Transport)
-UCAS treats the execution environment as a first-class citizen. Want to run an agent in a specific `tmux` pane, over an `ssh` tunnel, or inside a temporary `docker` container? Just specify the wrapper in your configuration layering.
+### 🛡️ Run Mods (Execution Wrappers)
+UCAS treats the execution environment as a first-class citizen through "Run Mods". This generalizes how commands are launched, allowing for flexible orchestration like running in `tmux`, `bash`, or even custom Python scripts. 
+
+A run-mod is a mod that defines a `run:` block:
+```yaml
+run:
+  name: my-runner
+  script: ./runner.py  # Relative to mod dir
+```
+
+When an agent is launched, the selected run-mod's script or template is executed, and it is responsible for the final command invocation. This allows for total freedom of transport (SSH, Docker, Screen, etc.) defined entirely in YAML.
 
 ### Model Mapping
 ACLIs translate agent's `requested_model` to supported models:
@@ -251,24 +260,22 @@ UCAS injects the following context into all hooks and the main process:
 - `UCAS_SESSION_ID`: Unique ID for the current execution session.
 - `UCAS_ACLI_EXE`: The resolved ACLI executable.
 - `UCAS_MAIN_COMMAND`: The full command line used to launch the primary agent.
+- `UCAS_RUN_DIR`: Absolute path to the directory where the active `run-mod` is defined.
 
-### ACLI Selection
-The ACLI (Agent CLI) to use is determined by this priority order:
+```
 
-1. `override_acli` (from override files - veto power)
-2. `acli.name` (if this entity IS an ACLI definition after merge)
-3. First item in `allowed_acli` list (= default)
-
-**`allowed_acli` behavior:**
-- Multiple items: First is default, validates selection against list
-- Single item: Forces that ACLI (useful for project-specific requirements)
+### Run Mod Selection
+Similar to ACLIs, the runner is determined by:
+1. `override_run` (veto power)
+2. `run.name` (if the merged entity defines a runner)
+3. First item in `allowed_run` list (= default)
 
 ```yaml
-# .ucas/ucas.yaml
-allowed_acli:
-  - acli-pi        # ← Default ACLI for this project
-  - acli-claude
-  - acli-gemini
+# ucas.yaml defaults
+allowed_run:
+  - run-bash
+  - run-tmux
+default_run: run-bash
 ```
 
 ## Example Configurations
@@ -287,29 +294,24 @@ name: mod-git
 description: Adds git operation capabilities
 ```
 
-### ACLI Definition
+### Run Mod Definition
+Run mods can use templates or scripts. Python scripts are recommended for cross-platform portability.
+
+#### Template-based
 ```yaml
-# mods/acli-pi/ucas.yaml
-acli:
-  name: acli-pi
-  executable: pi
-  
-  arg_mapping:
-    prompt_file: --append-system-prompt
-    skills_dir: --skill
-    model_flag: --model
-  
-  model_mapping:
-    gpt-4: gemini-2.5-flash
-    default: gemini-2.5-flash
-  
-  session_arg: --session "$HOME/.pi/sessions/{uuid}.json"
+run:
+  name: run-bash
+  template: |
+    bash -c "{cmd}"
 ```
 
-**Note**: Each ACLI defines how skills are passed:
-- `acli-pi`: `--skill <dir>`
-- `acli-claude`: `--add-dir <dir>`
-- `acli-gemini`: `--include-directories <dir>`
+#### Script-based (with CLI args)
+```yaml
+run:
+  name: run-tmux
+  script: ./tmux_runner.py
+```
+Data is passed to scripts via CLI flags: `--cmd`, `--agent`, `--team`, `--project-root`, `--session-id`, `--session-name`, `--window-name`.
 
 ### Team Definition
 Any mod can define a team orchestration by including a `team` key in its `ucas.yaml`:
