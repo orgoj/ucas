@@ -32,6 +32,7 @@ def prepare_context(
     Creates UCAS_AGENT_NOTES directory.
     """
     project_root = Path.cwd().resolve()
+    # TODO to ma byt podle jmena agenta v teamu, jen kdyz startuju single agenta tak je to generic agent name
     notes_dir = project_root / '.ucas' / 'notes' / agent_name
     notes_dir.mkdir(parents=True, exist_ok=True)
 
@@ -203,7 +204,7 @@ def translate_model(requested_model: Optional[str], acli_def: Dict[str, Any], de
     2. If not found, use model_mapping["default"] if exists
     3. If no mapping and no default:
        - ignore_unknown: false (or missing) → FATAL ERROR
-       - ignore_unknown: true → return None (skip model flag) + WARNING
+       - ignore_unknown: true → return original requested_model
     """
     if not requested_model:
         return None
@@ -232,9 +233,9 @@ def translate_model(requested_model: Optional[str], acli_def: Dict[str, Any], de
             f"Available models: {list(model_mapping.keys())}"
         )
     else:
-        print(f"[WARNING] Model '{requested_model}' not found in ACLI model_mapping. "
-              f"Skipping model flag (ignore_unknown=true).", file=sys.stderr)
-        return None
+        if debug:
+            print(f"[MODEL] Model '{requested_model}' not in mapping, using as-is (ignore_unknown=true)", file=sys.stderr)
+        return requested_model
 
 
 def build_command(
@@ -244,6 +245,7 @@ def build_command(
     acli_config: Dict[str, Any],
     skills_dirs: List[Path],
     context: Dict[str, str],
+    prompt: Optional[str] = None,
     debug: bool = False
 ) -> str:
     """
@@ -263,12 +265,18 @@ def build_command(
     cmd_parts = [executable]
 
     # Generate merged prompt file
-    prompt_file = generate_prompt(agent_path, mod_paths, merged_config, debug)
+    prompt_file = generate_prompt(agent_path, mod_paths, merged_config, context, debug)
 
     # Add prompt_file argument
     if 'prompt_file' in arg_mapping and prompt_file:
         cmd_parts.append(arg_mapping['prompt_file'])
         cmd_parts.append(str(prompt_file))
+
+    # Add provider argument (if requested)
+    requested_provider = merged_config.get('requested_provider')
+    if requested_provider and 'provider_flag' in arg_mapping:
+        cmd_parts.append(arg_mapping['provider_flag'])
+        cmd_parts.append(requested_provider)
 
     # Add model argument (if requested and mapped)
     requested_model = merged_config.get('requested_model')
@@ -311,21 +319,56 @@ def build_command(
         if debug:
             print(f"[SESSION] Session arg: {session_expanded}", file=sys.stderr)
 
+    # Add optional startup prompt
+    if prompt:
+        cmd_parts.append(prompt)
+
     return ' '.join(shlex.quote(p) for p in cmd_parts)
+
+
+def expand_variables(text: str, context: Dict[str, str]) -> str:
+    """Expand variables like $VAR or ${VAR} using context and environment."""
+    import os
+    full_context = os.environ.copy()
+    full_context.update(context)
+    
+    result = text
+    for k, v in full_context.items():
+        result = result.replace(f"${k}", str(v))
+        result = result.replace(f"${{{k}}}", str(v))
+    return result
 
 
 def generate_prompt(
     agent_path: Path,
     mod_paths: List[Path],
     merged_config: Dict[str, Any],
+    context: Dict[str, str],
     debug: bool = False
 ) -> Optional[Path]:
     """
-    Concatenate PROMPT.md files: agent → mod1 → mod2 ...
+    Concatenate PROMPT.md files and inject identity header.
+    Variables in prompt content are expanded using context.
     Save to .ucas/tmp/<agent>.merged.md
     """
-    # Collect prompt files
+    # 1. Identity Header
+    agent_name = context.get('UCAS_AGENT', 'unknown')
+    team_name = context.get('UCAS_TEAM', '')
+    
+    identity = f"SYSTEM OVERRIDE: Your name is **{agent_name}**.\n"
+    identity += f"You are a specialized AI agent in the UCAS (Universal CLI Agent System) framework.\n"
+    identity += f"Your mission identity: **{agent_name}**\n"
+    if team_name:
+        identity += f"Assigned Team: **{team_name}**\n"
+    identity += f"\nIMPORTANT: You must NOT identify as 'pi', 'Claude', or 'Gemini'. "
+    identity += f"Your internal system designation is **{agent_name}**. Always use this name in communications.\n"
+    identity += "\n---\n\n"
+
+    # 2. Collect prompt files
     prompt_parts = []
+    
+    # Start with identity
+    prompt_parts.append(("Identity Header", identity))
 
     agent_prompt = agent_path / 'PROMPT.md'
     if agent_prompt.exists():
@@ -339,24 +382,27 @@ def generate_prompt(
     if not prompt_parts:
         return None
 
-    # Concatenate with separators
+    # 3. Concatenate and Expand variables
     merged_content = ""
     for i, (source, content) in enumerate(prompt_parts):
-        if i > 0:
+        if i > 0 and source != "Identity Header":
             merged_content += "\n\n---\n\n"
-        if debug:
+        if debug and source != "Identity Header":
             merged_content += f"# {source}\n\n"
         merged_content += content
 
-    # Save to .ucas/tmp/
+    # Expand variables like $UCAS_AGENT, ${UCAS_PROJECT_ROOT} etc.
+    expanded_content = expand_variables(merged_content, context)
+
+    # 4. Save to .ucas/tmp/
     tmp_dir = Path.cwd() / '.ucas' / 'tmp'
     tmp_dir.mkdir(parents=True, exist_ok=True)
 
-    output_file = tmp_dir / f"{agent_path.name}.merged.md"
-    output_file.write_text(merged_content)
+    output_file = tmp_dir / f"{context.get('UCAS_AGENT', agent_path.name)}.merged.md"
+    output_file.write_text(expanded_content)
 
     if debug:
-        print(f"[PROMPT] Generated merged prompt: {output_file}", file=sys.stderr)
+        print(f"[PROMPT] Generated merged prompt for {agent_name}: {output_file}", file=sys.stderr)
 
     return output_file
 

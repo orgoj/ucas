@@ -185,7 +185,10 @@ class YAMLParser:
                 if not value_str:
                     # Value on next line
                     value = self._parse_nested(base_indent)
-                elif ':' in value_str:
+                elif value_str == '|':
+                    # Multiline string in list item
+                    value = self._parse_multiline_string(base_indent)
+                elif self._is_dict_item(value_str):
                     # List item is a dict on one line, but might continue on next lines
                     # We need to peek and see if next lines are more indented
                     
@@ -237,8 +240,14 @@ class YAMLParser:
         while self.line_idx < len(self.lines):
             line = self.lines[self.line_idx]
             
-            # Skip empty lines
-            if not line.strip():
+            # Skip lines that are only comments
+            stripped = line.strip()
+            if stripped.startswith('#'):
+                self.line_idx += 1
+                continue
+            
+            # Empty lines are preserved
+            if not stripped:
                 lines.append("")
                 self.line_idx += 1
                 continue
@@ -252,8 +261,9 @@ class YAMLParser:
             if base_indent == -1:
                 base_indent = indent
             
-            # Add line stripped of base indentation
-            lines.append(line[base_indent:])
+            # Add line stripped of base indentation and trailing comments
+            content = line[base_indent:].split(' #')[0].rstrip()
+            lines.append(content)
             self.line_idx += 1
             
         # Join lines and rstrip to remove extra newlines at end
@@ -378,3 +388,20 @@ class YAMLParser:
 
         # Unquoted string
         return text
+
+    def _is_dict_item(self, text: str) -> bool:
+        """Check if text looks like a 'key: value' pair."""
+        if ':' not in text:
+            return False
+        
+        # Must have a space after colon, or colon must be at the end
+        # and it shouldn't be inside quotes (very simple check)
+        in_quote = False
+        for i, c in enumerate(text):
+            if c in ('"', "'"):
+                in_quote = not in_quote
+            elif c == ':' and not in_quote:
+                # Found a potential colon. Check if it's followed by space or is at end.
+                if i + 1 == len(text) or text[i+1] == ' ':
+                    return True
+        return False

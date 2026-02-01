@@ -3,6 +3,7 @@ UCAS entry point: python -m ucas
 """
 
 import sys
+import os
 from pathlib import Path
 from typing import List, Dict, Any, Tuple
 
@@ -11,7 +12,7 @@ from .launcher import (
     select_acli, build_command, run_command, LaunchError, 
     prepare_context, HookRunner, get_context_export_str,
     select_run_mod, expand_run_template, validate_runner,
-    stop_runner
+    stop_runner, expand_variables
 )
 from .resolver import (
     find_entity, is_acli, load_config, get_layer_config_paths, 
@@ -107,7 +108,10 @@ def _prepare_and_run_member(
     prefix: str = "",
     team_name: str = None,
     team_index: int = 0,
-    team_size: int = 1
+    team_size: int = 1,
+    prompt: str = None,
+    model: str = None,
+    provider: str = None
 ) -> None:
     """
     Prepare and run a single agent member.
@@ -118,9 +122,29 @@ def _prepare_and_run_member(
 
     # Merge configs
     merged_config = merge_configs(agent_path, mod_paths, debug)
+    
+    # Override requested_model if provided from team definition
+    if model:
+        merged_config['requested_model'] = model
+    
+    # Override requested_provider if provided
+    if provider:
+        merged_config['requested_provider'] = provider
 
     # Prepare context and hooks
-    context = prepare_context(agent_name, agent_path, team_name, team_index, team_size)
+    context = prepare_context(member_name, agent_path, team_name, team_index, team_size)
+    
+    # Inject environment variables from merged config (supporting variable expansion)
+    env_config = merged_config.get('env', {})
+    if env_config:
+        for k, v in env_config.items():
+            if isinstance(v, str):
+                context[k] = expand_variables(v, context)
+            else:
+                context[k] = str(v)
+        if debug:
+            print(f"[DEBUG] Injected ENV from config: {list(env_config.keys())}", file=sys.stderr)
+
     hook_runner = HookRunner(context, debug)
     hooks = merged_config.get('hooks', {})
 
@@ -139,6 +163,28 @@ def _prepare_and_run_member(
 
     # Collect skills
     skills_dirs = collect_skills(agent_path, mod_paths)
+    
+    # Add skill scripts to PATH in context
+    script_paths = []
+    for sd in skills_dirs:
+        # 1. Direct scripts in skills/ (legacy or simple)
+        scripts_dir = sd / 'scripts'
+        if scripts_dir.exists() and scripts_dir.is_dir():
+            script_paths.append(str(scripts_dir.resolve()))
+        
+        # 2. Scripts in subdirectories (standard: skills/<skill-name>/scripts/)
+        for sub in sd.iterdir():
+            if sub.is_dir():
+                sub_scripts = sub / 'scripts'
+                if sub_scripts.exists() and sub_scripts.is_dir():
+                    script_paths.append(str(sub_scripts.resolve()))
+    
+    if script_paths:
+        # Prepend to existing PATH to give priority to skill scripts
+        current_path = os.environ.get('PATH', '')
+        context['PATH'] = ':'.join(script_paths) + (':' + current_path if current_path else '')
+        if debug:
+            print(f"[DEBUG] Updated PATH in context: {context['PATH']}", file=sys.stderr)
 
     # Build main command
     main_cmd = build_command(
@@ -148,13 +194,13 @@ def _prepare_and_run_member(
         acli_config,
         skills_dirs,
         context,
+        prompt,
         debug
     )
 
     # Update context with dynamic info (support nested ACLI structure)
     acli_def = get_acli_config(acli_config)
     context['UCAS_ACLI_EXE'] = acli_def.get('executable', '')
-    context['UCAS_MAIN_COMMAND'] = main_cmd
 
     # Chain hooks for tmux execution
     # Logic: exports && prerun && main_cmd && postrun
@@ -287,6 +333,7 @@ def run_config_team(team_name: str, team_def: Dict[str, Any], cli_mods: List[str
 
     team_wide_mods = team_def.get('mods', [])
     sleep_seconds = team_def.get('sleep_seconds', 0)
+    team_prompt = team_def.get('prompt')
 
     # Run each member
     member_names = list(members.keys())
@@ -298,12 +345,19 @@ def run_config_team(team_name: str, team_def: Dict[str, Any], cli_mods: List[str
         if isinstance(member_spec, list):
             base_agent = member_spec[0]
             member_mods = member_spec[1:]
+            member_prompt = None
+            member_model = None
         elif isinstance(member_spec, str):
             base_agent = member_spec
             member_mods = []
+            member_prompt = None
+            member_model = None
         elif isinstance(member_spec, dict):
             # Look for 'mods' first (Unified approach), fallback to 'agent' (Legacy)
             agent_list = member_spec.get('mods') or member_spec.get('agent')
+            member_prompt = member_spec.get('prompt')
+            member_model = member_spec.get('model')
+            member_provider = member_spec.get('provider')
             if not agent_list:
                 raise LaunchError(f"Team member '{member_name}' has no mods/agent specified")
             
@@ -322,9 +376,18 @@ def run_config_team(team_name: str, team_def: Dict[str, Any], cli_mods: List[str
 
         # Total Aggregated Mods
         all_mods = team_wide_mods + cli_mods + member_mods
+        
+        # Determine prompt: member prompt overrides team prompt
+        final_prompt = member_prompt if member_prompt is not None else team_prompt
 
         if args.debug:
             print(f"[TEAM] Member '{member_name}': {base_agent} +{' +'.join(all_mods) if all_mods else '(no mods)'}", file=sys.stderr)
+            if final_prompt:
+                print(f"[TEAM] Prompt: {final_prompt}", file=sys.stderr)
+            if member_model:
+                print(f"[TEAM] Model: {member_model}", file=sys.stderr)
+            if member_provider:
+                print(f"[TEAM] Provider: {member_provider}", file=sys.stderr)
 
         # Prepare and run member
         _prepare_and_run_member(
@@ -336,7 +399,10 @@ def run_config_team(team_name: str, team_def: Dict[str, Any], cli_mods: List[str
             prefix=f"[{member_name}] ",
             team_name=team_name,
             team_index=idx,
-            team_size=len(member_names)
+            team_size=len(member_names),
+            prompt=final_prompt,
+            model=member_model,
+            provider=member_provider
         )
 
         # Sleep between starts (except after last member)

@@ -1,0 +1,16 @@
+# UCAS Team Alpha
+
+team:
+  name: pi-mail
+  description: "Pi mail team"
+  mods: [msg-mcp_agent_mail, acli-pi]
+  prompt: "Wait for instruction!"
+  agents:
+    BlueStone:
+      mods: [generic]
+      model: glm-4.5
+      provider: zai
+    GreenLake:
+      mods: [generic]
+      model: glm-4.5
+      provider: zai

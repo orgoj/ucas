@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+# UCAS Skill: am-client
+# Wrapper for MCP Agent Mail CLI client
+
+# Ensure AGENT_NAME is set from UCAS context if available
+export AGENT_NAME="${UCAS_AGENT:-$(whoami)}"
+export AM_PROJECT_KEY="${UCAS_PROJECT_ROOT:-$(pwd)}"
+
+/home/michael/work/ai/Dicklesworthstone/mcp_agent_mail/scripts/am-client "$@"

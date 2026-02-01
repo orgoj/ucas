@@ -1,2 +1,16 @@
 allow export UCAS_HOME=*
 allow python3 -m ucas *
+
+# komunikace mcp_agent_mail
+allow am-client *
+
+# tmux testing
+allow tmux ls *
+allow tmux list-windows *
+allow tmux capture-pane -p -t ucas*
+allow tmux capture-pane -p -t ucas* *
+allow tmux send-keys -t ucas-team-pi-mail*
+allow tmux send-keys -t ucas-team-pi-mail* *
+
+# integrate other
+allow-read /home/michael/work/ai/Dicklesworthstone/mcp_agent_mail/**

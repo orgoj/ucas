@@ -14,12 +14,9 @@ acli:
     model_flag: --model
   
   model_mapping:
-    gpt-4: sonnet
-    gpt-4-turbo: sonnet-4
-    gpt-5.2-pro: opus-4.5
     default: sonnet
   
-  ignore_unknown: false
+  ignore_unknown: true
   
   # Session management: Claude uses --session-id with UUID only (no path)
   session_arg: --session-id {uuid}

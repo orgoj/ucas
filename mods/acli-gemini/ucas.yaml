@@ -17,10 +17,8 @@ acli:
     model_flag: --model
   
   model_mapping:
-    gpt-4: gemini-2.0-flash-thinking-exp
-    gpt-4-turbo: gemini-2.0-flash-thinking-exp
     default: gemini-2.0-flash-thinking-exp
   
-  ignore_unknown: false
+  ignore_unknown: true
   
   # Note: No session management - gemini uses --resume with indices, not compatible with UCAS

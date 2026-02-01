@@ -92,12 +92,6 @@ ucas run basic-chat --debug
 ## Project Structure
 
 ```
-ucas/
-├── ucas/                    # Main package
-│   ├── yaml_parser.py       # Mini YAML parser
-│   ├── resolver.py          # Entity search across layers
-│   ├── merger.py            # Sandwich merge logic
-│   └── launcher.py          # Command building & tmux execution
 ├── mods/                    # System Library (Agents, Mods, and definitions)
 │   ├── acli-claude/
 │   │   └── ucas.yaml
@@ -107,6 +101,10 @@ ucas/
 │   ├── mod-git/
 │   │   ├── ucas.yaml
 │   │   ├── PROMPT.md
+│   │   └── skills/
+│   ├── msg-mcp_agent_mail/  # Messaging between agents
+│   │   ├── ucas.yaml
+│   │   ├── README.md
 │   │   └── skills/
 └── ucas.yaml                # System defaults (can also define teams)
 ```
