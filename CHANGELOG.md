@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
  
+## [0.8.0] - 2026-02-01
+
+### Added
+- **`ucas stop-team` Command**: New command to cleanly tear down team executions.
+- **YAML-Driven Stop Logic**: Added support for `stop_template`, `stop_script`, and `stop_executable` in the `run` configuration block.
+- **Team Execution Context**: Injected `UCAS_TEAM_INDEX` and `UCAS_TEAM_SIZE` into the environment.
+- **Session Safety in `run-tmux`**: Implemented session creation vs. window appending logic. The runner now fails if a session collision occurs on the first team member.
+
 ## [0.7.0] - 2026-02-01
 
 ### Added

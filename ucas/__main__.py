@@ -10,7 +10,8 @@ from .cli import parse_args
 from .launcher import (
     select_acli, build_command, run_command, LaunchError, 
     prepare_context, HookRunner, get_context_export_str,
-    select_run_mod, expand_run_template, validate_runner
+    select_run_mod, expand_run_template, validate_runner,
+    stop_runner
 )
 from .resolver import (
     find_entity, is_acli, load_config, get_layer_config_paths, 
@@ -104,7 +105,9 @@ def _prepare_and_run_member(
     dry_run: bool,
     debug: bool,
     prefix: str = "",
-    team_name: str = None
+    team_name: str = None,
+    team_index: int = 0,
+    team_size: int = 1
 ) -> None:
     """
     Prepare and run a single agent member.
@@ -117,7 +120,7 @@ def _prepare_and_run_member(
     merged_config = merge_configs(agent_path, mod_paths, debug)
 
     # Prepare context and hooks
-    context = prepare_context(agent_name, agent_path, team_name)
+    context = prepare_context(agent_name, agent_path, team_name, team_index, team_size)
     hook_runner = HookRunner(context, debug)
     hooks = merged_config.get('hooks', {})
 
@@ -206,6 +209,8 @@ def main():
             run_agent(args)
         elif args.command == 'run-team':
             run_team(args)
+        elif args.command == 'stop-team':
+            stop_team(args)
         else:
             print(f"Unknown command: {args.command}", file=sys.stderr)
             sys.exit(1)
@@ -329,7 +334,9 @@ def run_config_team(team_name: str, team_def: Dict[str, Any], cli_mods: List[str
             dry_run=args.dry_run,
             debug=args.debug,
             prefix=f"[{member_name}] ",
-            team_name=team_name
+            team_name=team_name,
+            team_index=idx,
+            team_size=len(member_names)
         )
 
         # Sleep between starts (except after last member)
@@ -367,6 +374,44 @@ def run_team(args):
         print(f"[TEAM] Found team definition in: {entity_path}", file=sys.stderr)
 
     run_config_team(name, team_def, args.mods or [], args)
+
+
+def stop_team(args):
+    """Stop a team of agents."""
+    name = args.team
+    
+    # 1. Resolve team name as a mod
+    entity_path = find_entity(name)
+    if not entity_path:
+        raise LaunchError(f"Team mod '{name}' not found in mods/ library.")
+
+    # 2. Standard Sandwich Merge for this mod
+    # Use CLI mods if provided to ensure same runner resolution
+    cli_mods = args.mods or []
+    mod_paths = []
+    for m in cli_mods:
+        m_path = find_entity(m)
+        if m_path: mod_paths.append(m_path)
+
+    merged_config = merge_configs(entity_path, mod_paths, args.debug)
+
+    # 3. Check for team definition (needed to get name/size for context)
+    team_def = merged_config.get('team') or merged_config
+    
+    # 4. Determine runner
+    run_name = select_run_mod(merged_config, args.debug)
+    run_path = find_entity(run_name)
+    if not run_path:
+        raise LaunchError(f"Run-mod '{run_name}' not found")
+    
+    run_config_full = load_config(run_path)
+    run_def = get_run_config(run_config_full)
+
+    # 5. Prepare context for stopping (minimal context needed by templates)
+    context = prepare_context("stop-agent", entity_path, name)
+    
+    # 6. Stop
+    stop_runner(run_def, context, run_path, args.dry_run, args.debug)
 
 
 if __name__ == '__main__':

@@ -20,7 +20,13 @@ class LaunchError(Exception):
     pass
 
 
-def prepare_context(agent_name: str, agent_path: Path, team_name: Optional[str] = None) -> Dict[str, str]:
+def prepare_context(
+    agent_name: str, 
+    agent_path: Path, 
+    team_name: Optional[str] = None,
+    team_index: int = 0,
+    team_size: int = 1
+) -> Dict[str, str]:
     """
     Prepare environment variables for mod execution.
     Creates UCAS_AGENT_NOTES directory.
@@ -37,6 +43,8 @@ def prepare_context(agent_name: str, agent_path: Path, team_name: Optional[str] 
     context = {
         'UCAS_AGENT': agent_name,
         'UCAS_TEAM': team_name or '',
+        'UCAS_TEAM_INDEX': str(team_index),
+        'UCAS_TEAM_SIZE': str(team_size),
         'UCAS_AGENT_DIR': str(agent_path.resolve()),
         'UCAS_AGENT_NOTES': str(notes_dir.resolve()),
         'UCAS_PROJECT_ROOT': str(project_root),
@@ -364,6 +372,73 @@ def validate_runner(run_def: Dict[str, Any], context: Dict[str, str]) -> None:
             f"Runner '{runner_name}' is marked as 'single: true' and cannot be used for team execution. "
             f"Please use a multi-session runner like 'run-tmux'."
         )
+
+
+def stop_runner(run_def: Dict[str, Any], context: Dict[str, str], run_dir: Path, dry_run: bool = False, debug: bool = False) -> None:
+    """
+    Execute stop command using run-mod definition.
+    Supports: stop_script, stop_executable, stop_template.
+    """
+    # Create environment
+    env = os.environ.copy()
+    env.update(context)
+    env['UCAS_RUN_DIR'] = str(run_dir.resolve())
+
+    # Build command parts
+    final_cmd_parts = []
+    
+    stop_script = run_def.get('stop_script')
+    stop_executable = run_def.get('stop_executable')
+    stop_template = run_def.get('stop_template')
+
+    if stop_script:
+        script_path = Path(stop_script)
+        if not script_path.is_absolute():
+            script_path = (run_dir / script_path).resolve()
+            
+        if script_path.suffix == '.py':
+            final_cmd_parts = [sys.executable, str(script_path)]
+        else:
+            final_cmd_parts = [str(script_path)]
+            
+        # Append common data as CLI arguments (similar to run but without {cmd})
+        final_cmd_parts.extend(get_run_args("", "stop", context))
+    elif stop_executable:
+        exe_path = Path(stop_executable)
+        if not exe_path.is_absolute() and stop_executable.startswith('./'):
+            exe_path = (run_dir / exe_path).resolve()
+        
+        final_cmd_parts = [str(exe_path)]
+        final_cmd_parts.extend(get_run_args("", "stop", context))
+    elif stop_template:
+        # Lightweight shell template
+        expanded_cmd = expand_run_template(stop_template, "", "stop", context)
+        if dry_run:
+            print(f"[DRY-RUN] Would run stop template: {expanded_cmd.strip()}")
+            return
+            
+        try:
+            subprocess.run(expanded_cmd, shell=True, check=True, env=env)
+            return
+        except subprocess.CalledProcessError as e:
+            raise LaunchError(f"Stop template execution failed: {e}")
+    else:
+        # If no stop command is defined, it might not be a bug but just a "dumb" runner
+        if debug:
+            print(f"[RUN] No stop command defined for runner '{run_def.get('name')}'", file=sys.stderr)
+        return
+
+    if dry_run:
+        print(f"[DRY-RUN] Would run stop: {' '.join(shlex.quote(p) for p in final_cmd_parts)}")
+        return
+
+    if debug:
+        print(f"[EXEC] Running stop: {' '.join(shlex.quote(p) for p in final_cmd_parts)}", file=sys.stderr)
+
+    try:
+        subprocess.run(final_cmd_parts, check=True, env=env)
+    except subprocess.CalledProcessError as e:
+        raise LaunchError(f"Stop command execution failed: {e}")
 
 
 def run_command(run_def: Dict[str, Any], cmd: str, member_name: str, context: Dict[str, str], run_dir: Path, debug: bool = False) -> None:

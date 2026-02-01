@@ -1,0 +1,13 @@
+# UCAS Team Alpha
+
+team:
+  name: alpha
+  description: "Alpha team"
+  mods: [ucas]
+  agents:
+    a_pi:
+      mods: [generic, acli-pi]
+    a_claude:
+      mods: [generic, acli-claude]
+    a_gemini:
+      mods: [generic, acli-gemini]

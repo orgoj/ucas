@@ -2,7 +2,7 @@
 
 # Auto-included mods
 mods+:
-  - run-bash
+  - run-tmux
 
 allowed_acli+:
   - acli-claude
@@ -11,5 +11,5 @@ allowed_acli+:
 
 # Run configuration
 allowed_run+:
-  - run-bash
   - run-tmux
+  - run-bash

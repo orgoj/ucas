@@ -29,6 +29,13 @@ def parse_args(argv=None):
     team_parser.add_argument('--dry-run', action='store_true', help='Show commands without executing')
     team_parser.add_argument('--debug', action='store_true', help='Verbose merge tracing')
 
+    # stop-team command
+    stop_parser = subparsers.add_parser('stop-team', help='Stop a running team')
+    stop_parser.add_argument('team', help='Team name to stop')
+    stop_parser.add_argument('mods', nargs='*', help='Mods to apply (to resolve the same runner)')
+    stop_parser.add_argument('--dry-run', action='store_true', help='Show stop command without executing')
+    stop_parser.add_argument('--debug', action='store_true', help='Verbose merge tracing')
+
     args = parser.parse_args(argv)
 
     if not args.command:

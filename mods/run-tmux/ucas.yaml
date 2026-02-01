@@ -2,6 +2,13 @@ run!:
   name: run-tmux
   single: false
   script: ./tmux_runner.py
+  stop_template: |
+    if tmux has-session -t {session_name} 2>/dev/null; then
+      tmux kill-session -t {session_name}
+      echo "✓ Killed session {session_name}"
+    else
+      echo "Session {session_name} not found"
+    fi
 
 mods+:
   - name: run-tmux
