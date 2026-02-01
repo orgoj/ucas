@@ -14,6 +14,8 @@ class TestUCASDryRun(unittest.TestCase):
         self.env = os.environ.copy()
         self.env["PYTHONPATH"] = str(self.repo_root)
         self.env["UCAS_HOME"] = str(self.fixtures_dir)
+        # Isolate HOME to avoid reading ~/.ucas/ucas.yaml from the real user
+        self.env["HOME"] = str(self.fixtures_dir)
         # Session ID for stability in tests
         self.env["UCAS_SESSION_ID"] = "test-session"
 

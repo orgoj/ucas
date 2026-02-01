@@ -13,6 +13,14 @@ class TestModPaths(unittest.TestCase):
         self.old_cwd = os.getcwd()
         os.chdir(self.test_dir)
         
+        # Isolation: Mock Path.home to point to our test dir
+        self.home_patcher = unittest.mock.patch('pathlib.Path.home', return_value=self.test_dir)
+        self.mock_home = self.home_patcher.start()
+        
+        # Isolation: Ensure UCAS_HOME doesn't leak from host
+        self.env_patcher = unittest.mock.patch.dict(os.environ, {"UCAS_HOME": ""})
+        self.env_patcher.start()
+
         # Create standard project structure
         self.project_mods = self.test_dir / '.ucas' / 'mods'
         self.project_mods.mkdir(parents=True)
@@ -22,6 +30,8 @@ class TestModPaths(unittest.TestCase):
         self.external_mods.mkdir()
 
     def tearDown(self):
+        self.env_patcher.stop()
+        self.home_patcher.stop()
         os.chdir(self.old_cwd)
         shutil.rmtree(self.test_dir)
 
