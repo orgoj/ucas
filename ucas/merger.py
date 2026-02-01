@@ -82,79 +82,78 @@ def merge_configs(
 
 def _merge_dicts(base: Dict[str, Any], overlay: Dict[str, Any], debug: bool, layer_name: str) -> Dict[str, Any]:
     """
-    Merge two dicts. Last wins for scalar/dict values.
-    Special handling for 'skills' key: aggregate all values.
+    Merge two dicts using suffix-based strategies:
+    - key+: Merge/Append (recursive for dicts, concatenate for lists)
+    - key-: Remove (remove from list or delete from dict)
+    - key!: Override (force replacement)
+    - key?: Default (only set if missing in base)
+    - key~: Update (only set if already exists in base)
+    - key: Default merge (deep for dicts, last-wins for others)
     """
     result = base.copy()
 
-    for key, value in overlay.items():
-        if key == 'skills':
-            # Aggregate skills (don't overwrite)
+    for raw_key, value in overlay.items():
+        # Identify strategy from suffix
+        strategy = ""
+        key = raw_key
+        if raw_key.endswith(("+", "-", "!", "?", "~")):
+            strategy = raw_key[-1]
+            key = raw_key[:-1]
+
+        # Handle specialized keys (legacy compat/shortcuts)
+        if key in ('skills', 'mods') and not strategy:
+            strategy = '+'  # Skills and mods always append by default
+        elif key == 'hooks' and not strategy:
+            strategy = '+'  # Hooks always append by default
+
+        # Apply strategy
+        if strategy == '!':  # OVERRIDE
+            result[key] = value
+        elif strategy == '?':  # DEFAULT (Set if missing)
+            if key not in result:
+                result[key] = value
+        elif strategy == '~':  # UPDATE (Set if exists)
+            if key in result:
+                if isinstance(result[key], dict) and isinstance(value, dict):
+                    result[key] = _merge_dicts(result[key], value, debug, f"{layer_name}.{key}")
+                else:
+                    result[key] = value
+        elif strategy == '-':  # REMOVE
             if key in result:
                 if isinstance(result[key], list) and isinstance(value, list):
-                    # Merge lists, preserve order
+                    # Remove items from list
+                    result[key] = [item for item in result[key] if item not in value]
+                elif isinstance(result[key], dict):
+                    # Remove keys from dict
+                    if isinstance(value, list):
+                        for k in value:
+                            result[key].pop(k, None)
+                    elif isinstance(value, dict):
+                        for k in value:
+                            result[key].pop(k, None)
+                else:
+                    # Scalar removal (delete key)
+                    result.pop(key, None)
+        elif strategy == '+':  # MERGE / APPEND
+            if key in result:
+                if isinstance(result[key], list) and isinstance(value, list):
                     result[key] = result[key] + value
+                elif isinstance(result[key], dict) and isinstance(value, dict):
+                    result[key] = _merge_dicts(result[key], value, debug, f"{layer_name}.{key}")
                 else:
+                    # Fallback to overwrite if types conflict
                     result[key] = value
             else:
                 result[key] = value
-        elif key == 'team':
-            # Merging the singular 'team' definition
-            if key in result:
-                if isinstance(result[key], dict) and isinstance(value, dict):
-                    merged_team = result[key].copy()
-                    
-                    # Merge 'mods' list
-                    if 'mods' in value:
-                        base_mods = merged_team.get('mods', [])
-                        over_mods = value['mods']
-                        merged_team['mods'] = base_mods + over_mods
-
-                    # Merge 'agents' dict
-                    if 'agents' in value:
-                        base_agents = merged_team.get('agents', {})
-                        over_agents = value['agents']
-                        
-                        # Use _merge_dicts for deep merge of agents (karel: mods, etc.)
-                        merged_team['agents'] = _merge_dicts(base_agents, over_agents, debug, f"{layer_name}.team.agents")
-                    
-                    # Other keys (sleep_seconds, etc.) just overwrite
-                    for k, v in value.items():
-                        if k not in ('mods', 'agents'):
-                            merged_team[k] = v
-                    
-                    result[key] = merged_team
-                else:
-                    result[key] = value
+        else:  # DEFAULT MERGE Logic
+            if isinstance(value, dict) and isinstance(result.get(key), dict):
+                # Recursively merge dicts by default
+                result[key] = _merge_dicts(result.get(key, {}), value, debug, f"{layer_name}.{key}")
             else:
+                # Last wins for other types
+                if debug and key in result:
+                    print(f"  [MERGE] {layer_name} overwrites '{key}': {result[key]} → {value}", file=sys.stderr)
                 result[key] = value
-        elif key == 'hooks':
-            # Aggregate hooks (don't overwrite)
-            if key in result:
-                if isinstance(result[key], dict) and isinstance(value, dict):
-                    # Merge hooks: aggregate values for each lifecycle stage
-                    merged_hooks = result[key].copy()
-                    for stage, cmds in value.items():
-                        if stage in merged_hooks:
-                            # Convert both to lists and concatenate
-                            base_cmds = merged_hooks[stage] if isinstance(merged_hooks[stage], list) else [merged_hooks[stage]]
-                            over_cmds = cmds if isinstance(cmds, list) else [cmds]
-                            merged_hooks[stage] = base_cmds + over_cmds
-                        else:
-                            merged_hooks[stage] = cmds
-                    result[key] = merged_hooks
-                else:
-                    result[key] = value
-            else:
-                result[key] = value
-        elif isinstance(value, dict) and isinstance(result.get(key), dict):
-            # Recursively merge dicts
-            result[key] = _merge_dicts(result[key], value, debug, layer_name)
-        else:
-            # Last wins
-            if debug and key in result:
-                print(f"  [MERGE] {layer_name} overwrites '{key}': {result[key]} → {value}", file=sys.stderr)
-            result[key] = value
 
     return result
 

@@ -1,0 +1,5 @@
+# System defaults
+requested_model: gpt-4
+skills: [/usr/share/ucas/skills]
+hooks:
+  prerun: [echo "System starting..."]

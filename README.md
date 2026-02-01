@@ -152,6 +152,33 @@ UCAS uses a multi-layer "Sandwich Merge" system to build the final configuration
 - If not set, uses `<package-install-dir>/mods/`
 - This means UCAS_HOME is **optional** - it auto-discovers system agents
 
+## Merge Strategies
+
+By default, UCAS uses "Last Wins" for scalars and "Recursive Merge" for dictionaries. However, you can explicitly control the merge behavior for any key using suffixes:
+
+| Suffix | Strategy | Behavior |
+| :--- | :--- | :--- |
+| `key+` | **Merge/Append** | Concatenates lists; deep merges dictionaries. |
+| `key-` | **Remove** | Removes items from a list or keys from a dictionary/scalar. |
+| `key!` | **Override** | Forces replacement of the base value. |
+| `key?` | **Default** | Sets the value only if the key is missing in the base. |
+| `key~` | **Update** | Sets the value only if the key already exists in the base. |
+
+**Example:**
+```yaml
+# Layer 1 (Base)
+l1: [a, b]
+o1: { a: 1 }
+
+# Layer 2 (Overlay)
+l1+: [c]       # Result: l1: [a, b, c]
+o1-: [a]       # Result: o1: {}
+new_val?: 42   # Result: new_val: 42
+```
+
+> [!NOTE]
+> `skills`, `mods`, and `hooks` always use the `+` (append) strategy by default for better out-of-the-box ad-hoc composition.
+
 ## Key Features
 
 ### 🚀 Dynamic CLI Composition (Killer Feature)

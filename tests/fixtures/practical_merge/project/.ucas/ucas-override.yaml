@@ -1,0 +1,6 @@
+# Project overrides (strong veto)
+requested_model!: claude-3-opus
+hooks:
+  prerun-: [echo "System starting..."]
+new_feature?: enabled
+existing_feature~: updated
