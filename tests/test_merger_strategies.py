@@ -74,8 +74,8 @@ class TestMergerStrategies(unittest.TestCase):
         # 1. Load System Base
         sys_cfg = parse_yaml((fixtures_dir / "system" / "ucas.yaml").read_text())
         
-        # 2. Merge Mod (git-mod)
-        mod_cfg = parse_yaml((fixtures_dir / "mods" / "git-mod" / "ucas.yaml").read_text())
+        # 2. Merge Mod (mod-git)
+        mod_cfg = parse_yaml((fixtures_dir / "mods" / "mod-git" / "ucas.yaml").read_text())
         result = _merge_dicts(sys_cfg, mod_cfg, False, "mod")
         
         # 3. Merge Project Override

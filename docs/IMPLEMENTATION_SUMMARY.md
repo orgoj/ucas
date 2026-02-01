@@ -47,8 +47,8 @@ $ python -m ucas run basic-chat
 
 **Verification:**
 ```bash
-$ python -m ucas run basic-chat +git-mod --dry-run
-Command: echo PROMPT: ... MODEL: sonnet-3.5 SKILLS: /path/to/git-mod/skills
+$ python -m ucas run basic-chat +mod-git --dry-run
+Command: echo PROMPT: ... MODEL: sonnet-3.5 SKILLS: /path/to/mod-git/skills
 ```
 
 Merged prompt includes both agent and mod sections separated by `---`.
@@ -107,7 +107,7 @@ Model mapping tests:
 ```bash
 $ python -m ucas run-team example-team --dry-run
 [agent1] Command: echo PROMPT: ... MODEL: sonnet-3.5
-[agent2] Command: echo PROMPT: ... MODEL: sonnet-3.5 SKILLS: .../git-mod/skills
+[agent2] Command: echo PROMPT: ... MODEL: sonnet-3.5 SKILLS: .../mod-git/skills
 ```
 
 ## Project Structure
@@ -130,7 +130,7 @@ ucas/
 │   ├── basic-chat/                 # Test agent
 │   │   ├── ucas.yaml
 │   │   └── PROMPT.md
-│   └── git-mod/                    # Test mod
+│   └── mod-git/                    # Test mod
 │       ├── ucas.yaml
 │       ├── PROMPT.md
 │       └── skills/

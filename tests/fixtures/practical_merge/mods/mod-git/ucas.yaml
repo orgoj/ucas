@@ -1,8 +1,8 @@
-# git-mod
+# mod-git
 skills+: [/opt/ucas/mods/git/skills]
 hooks+:
   prerun: [git pull]
   install: [apt-get install git]
 team:
   agents:
-    karel: [basic-chat, git-mod]
+    karel: [basic-chat, mod-git]

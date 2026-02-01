@@ -77,7 +77,7 @@ export UCAS_HOME=/custom/location
 ucas run basic-chat
 
 # Run an agent with mods
-ucas run basic-chat +git-mod +debug-mod
+ucas run basic-chat +mod-git +debug-mod
 
 # Run a team
 ucas run-team backend-squad
@@ -104,7 +104,7 @@ ucas/
 │   ├── basic-chat/
 │   │   ├── ucas.yaml
 │   │   └── PROMPT.md
-│   ├── git-mod/
+│   ├── mod-git/
 │   │   ├── ucas.yaml
 │   │   ├── PROMPT.md
 │   │   └── skills/
@@ -231,8 +231,8 @@ ignore_unknown: false  # Error on unknown models
 Skills from agent and all mods are collected and passed to the ACLI:
 
 ```bash
-ucas run basic-chat +git-mod +docker-mod
-# Results in: --tools /path/to/basic-chat/skills --tools /path/to/git-mod/skills --tools /path/to/docker-mod/skills
+ucas run basic-chat +mod-git +docker-mod
+# Results in: --tools /path/to/basic-chat/skills --tools /path/to/mod-git/skills --tools /path/to/docker-mod/skills
 ```
 
 ### Lifecycle Hooks
@@ -271,8 +271,8 @@ default_acli: acli-claude
 
 ### Mod Definition
 ```yaml
-# mods/git-mod/ucas.yaml
-name: git-mod
+# mods/mod-git/ucas.yaml
+name: mod-git
 description: Adds git operation capabilities
 ```
 
@@ -301,7 +301,7 @@ team:
   mods: [messaging-mod] # Global mods for all members
   agents:
     karel:
-      mods: [basic-chat, api-mod, git-mod]
+      mods: [basic-chat, api-mod, mod-git]
       # other member flags can go here
     lucie:
       mods: [basic-chat, aws-mod]

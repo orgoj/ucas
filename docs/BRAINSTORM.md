@@ -19,7 +19,7 @@ The program is invoked as `ucas` with the following syntax:
 1.  **Run an Agent:**
     ```bash
     ucas run [AGENT_NAME] +[MOD1] +[MOD2] ... [OPTIONS]
-    # Example: ucas run php-master +git-mod +acli-claude --debug
+    # Example: ucas run php-master +mod-git +acli-claude --debug
     ```
 
 2.  **Run a Team:**
@@ -284,12 +284,12 @@ Agent:   default_acli: "acli-claude"
 
 ## 7. Execution Algorithm (The Workflow)
 
-**Input:** `ucas run php-master +git-mod --dry-run`
+**Input:** `ucas run php-master +mod-git --dry-run`
 
 ### Step 1: Resolver (Search)
 
 *   Recursively searches the `agents` folders in all 3 layers.
-*   Finds the paths to `php-master` and `git-mod`.
+*   Finds the paths to `php-master` and `mod-git`.
 
 ### Step 2: Merge (The Brain)
 
@@ -328,7 +328,7 @@ Agent:   default_acli: "acli-claude"
     members:
       karel:
         agent: "php-master"
-        mods: ["git-mod", "debug-mod"]
+        mods: ["mod-git", "debug-mod"]
       pepa:
         agent: "sql-guru"
     ```

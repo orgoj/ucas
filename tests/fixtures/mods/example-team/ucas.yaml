@@ -10,4 +10,4 @@ members:
   agent2:
     agent: basic-chat
     mods:
-      - git-mod
+      - mod-git

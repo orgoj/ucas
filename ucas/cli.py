@@ -18,7 +18,7 @@ def parse_args(argv=None):
     # run command
     run_parser = subparsers.add_parser('run', help='Run an agent with optional mods')
     run_parser.add_argument('agent', help='Agent name to run')
-    run_parser.add_argument('mods', nargs='*', help='Mods to apply (e.g., +git-mod +debug-mod)')
+    run_parser.add_argument('mods', nargs='*', help='Mods to apply (e.g., +mod-git +debug-mod)')
     run_parser.add_argument('--dry-run', action='store_true', help='Show command without executing')
     run_parser.add_argument('--debug', action='store_true', help='Verbose merge tracing')
 
