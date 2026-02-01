@@ -4,7 +4,7 @@ Entity resolution across Project → User → System layers.
 
 import os
 from pathlib import Path
-from typing import Optional, Tuple, List
+from typing import Optional, Tuple, List, Dict, Any
 
 from .yaml_parser import parse_yaml
 
@@ -89,9 +89,18 @@ def is_acli(entity_path: Path) -> bool:
 
     try:
         config = parse_yaml(config_file.read_text())
-        return 'executable' in config
+        # Support both nested 'acli: { executable: ... }' and flat 'executable: ...'
+        return 'executable' in config or ('acli' in config and 'executable' in config.get('acli', {}))
     except Exception:
         return False
+
+
+def get_acli_config(config: Dict[str, Any]) -> Dict[str, Any]:
+    """Extract ACLI configuration, supporting both nested and flat structures."""
+    if 'acli' in config:
+        return config['acli']
+    # Backward compatibility: return config itself if flat structure
+    return config
 
 
 def load_config(entity_path: Path) -> dict:

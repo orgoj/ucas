@@ -7,9 +7,12 @@ import sys
 import shlex
 import shutil
 import subprocess
+import uuid
 from pathlib import Path
 from typing import List, Dict, Any, Optional
 from datetime import datetime
+
+from .resolver import get_acli_config
 
 
 class LaunchError(Exception):
@@ -29,9 +32,7 @@ def prepare_context(agent_name: str, agent_path: Path, team_name: Optional[str] 
     # Generate a session ID if not provided (e.g. from parent team process)
     session_id = os.environ.get('UCAS_SESSION_ID')
     if not session_id:
-        timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
-        suffix = os.urandom(3).hex()
-        session_id = f"{timestamp}-{suffix}"
+        session_id = str(uuid.uuid4())
 
     context = {
         'UCAS_AGENT': agent_name,
@@ -44,11 +45,45 @@ def prepare_context(agent_name: str, agent_path: Path, team_name: Optional[str] 
     return context
 
 
+def expand_session_template(template: str, context: Dict[str, str]) -> str:
+    """
+    Expand session path template with context variables.
+    Supports: {uuid}, {agent}, {team}, {project_root}, $HOME, $VAR
+    """
+    replacements = {
+        '{uuid}': context['UCAS_SESSION_ID'],
+        '{agent}': context['UCAS_AGENT'],
+        '{team}': context.get('UCAS_TEAM', ''),
+        '{project_root}': context['UCAS_PROJECT_ROOT']
+    }
+    
+    result = template
+    for placeholder, value in replacements.items():
+        result = result.replace(placeholder, value)
+    
+    # Expand environment variables like $HOME, $USER, etc.
+    result = os.path.expandvars(result)
+    
+    # Expand ~ to home directory (if any remain after $HOME expansion)
+    result = os.path.expanduser(result)
+    
+    # Make relative paths absolute (relative to project root) and normalize
+    # Only if it looks like a path (starts with / or ./ or ../)
+    if result.startswith(('/','./','../')):
+        path = Path(result)
+        if not path.is_absolute():
+            path = Path(context['UCAS_PROJECT_ROOT']) / path
+        result = str(path.resolve())
+    
+    return result
+
+
 def get_context_export_str(context: Dict[str, str]) -> str:
-    """Return a string of exports for shell injection."""
+    """Return a string of exports for shell injection. Skips empty values."""
     parts = []
     for k, v in context.items():
-        parts.append(f"export {k}={shlex.quote(v)}")
+        if v:  # Skip empty strings
+            parts.append(f"export {k}={shlex.quote(v)}")
     return ' && '.join(parts)
 
 
@@ -81,12 +116,15 @@ class HookRunner:
 
 def select_acli(merged_config: Dict[str, Any], debug: bool = False) -> str:
     """
-    Select ACLI based on Section 6 of spec:
+    Select ACLI based on simplified logic:
     1. override_acli → veto power (from override files)
-    2. executable already in config? (ACLI definition itself)
-    3. Agent's default_acli in allowed_acli?
-    4. User/project default_acli
-    5. Fallback: first allowed_acli
+    2. Check if this IS an ACLI definition (has acli.name)
+    3. Use first allowed_acli as default (single item = forced)
+    
+    allowed_acli list serves as:
+    - Validation: selected ACLI must be in list
+    - Default: first item is default
+    - Force: single item forces that ACLI
     """
     # 1. Check override_acli (veto power)
     if 'override_acli' in merged_config:
@@ -95,35 +133,32 @@ def select_acli(merged_config: Dict[str, Any], debug: bool = False) -> str:
             print(f"[ACLI] Using override_acli: {acli}", file=sys.stderr)
         return acli
 
-    # 2. Check if executable exists (this IS an ACLI)
-    if 'executable' in merged_config:
-        acli = merged_config.get('name', 'unknown')
+    # 2. Check if this IS an ACLI definition (has acli.name after merge)
+    acli_def = merged_config.get('acli', {})
+    if 'name' in acli_def:
+        acli_name = acli_def['name']
         if debug:
-            print(f"[ACLI] This is an ACLI definition: {acli}", file=sys.stderr)
-        return acli
+            print(f"[ACLI] This is an ACLI definition: {acli_name}", file=sys.stderr)
+        return acli_name
 
-    # 3. Check agent's default_acli
-    agent_default = merged_config.get('default_acli')
+    # 3. Use first allowed_acli as default
     allowed = merged_config.get('allowed_acli', [])
-
-    if agent_default and agent_default in allowed:
-        if debug:
-            print(f"[ACLI] Using agent's default_acli: {agent_default}", file=sys.stderr)
-        return agent_default
-
-    # 4. Use first allowed_acli
     if allowed:
         acli = allowed[0]
         if debug:
-            print(f"[ACLI] Using first allowed_acli: {acli}", file=sys.stderr)
+            if len(allowed) == 1:
+                print(f"[ACLI] Forced ACLI (only one in allowed list): {acli}", file=sys.stderr)
+            else:
+                print(f"[ACLI] Using default ACLI (first in allowed list): {acli}", file=sys.stderr)
         return acli
 
-    raise LaunchError("No ACLI found: no override_acli, default_acli, or allowed_acli")
+    raise LaunchError("No ACLI found: no override_acli, acli.name, or allowed_acli")
 
 
-def translate_model(requested_model: Optional[str], acli_config: Dict[str, Any], debug: bool = False) -> Optional[str]:
+def translate_model(requested_model: Optional[str], acli_def: Dict[str, Any], debug: bool = False) -> Optional[str]:
     """
     Translate agent's requested_model using ACLI's model_mapping.
+    acli_def should be the extracted ACLI configuration (already processed by get_acli_config).
 
     Logic:
     1. Check if requested_model exists in model_mapping
@@ -135,8 +170,8 @@ def translate_model(requested_model: Optional[str], acli_config: Dict[str, Any],
     if not requested_model:
         return None
 
-    model_mapping = acli_config.get('model_mapping', {})
-    ignore_unknown = acli_config.get('ignore_unknown', False)
+    model_mapping = acli_def.get('model_mapping', {})
+    ignore_unknown = acli_def.get('ignore_unknown', False)
 
     # Check direct mapping
     if requested_model in model_mapping:
@@ -170,16 +205,21 @@ def build_command(
     merged_config: Dict[str, Any],
     acli_config: Dict[str, Any],
     skills_dirs: List[Path],
+    context: Dict[str, str],
     debug: bool = False
 ) -> str:
     """
     Build command string by substituting into ACLI's arg_mapping.
+    acli_config should be the full config (will extract ACLI section internally).
     """
-    executable = acli_config.get('executable')
+    # Extract ACLI configuration (supports nested and flat structures)
+    acli_def = get_acli_config(acli_config)
+    
+    executable = acli_def.get('executable')
     if not executable:
         raise LaunchError("ACLI config missing 'executable' field")
 
-    arg_mapping = acli_config.get('arg_mapping', {})
+    arg_mapping = acli_def.get('arg_mapping', {})
 
     # Start with executable
     cmd_parts = [executable]
@@ -195,7 +235,7 @@ def build_command(
     # Add model argument (if requested and mapped)
     requested_model = merged_config.get('requested_model')
     if requested_model:
-        translated_model = translate_model(requested_model, acli_config, debug)
+        translated_model = translate_model(requested_model, acli_def, debug)
         if translated_model and 'model_flag' in arg_mapping:
             cmd_parts.append(arg_mapping['model_flag'])
             cmd_parts.append(translated_model)
@@ -205,6 +245,33 @@ def build_command(
         for skills_dir in skills_dirs:
             cmd_parts.append(arg_mapping['skills_dir'])
             cmd_parts.append(str(skills_dir))
+    
+    # Handle session management: session_arg contains complete argument with template
+    # Example: session_arg: --session "$HOME/.pi/sessions/{uuid}.json"
+    if 'session_arg' in acli_def:
+        session_template = acli_def['session_arg']
+        # Expand template with context variables
+        session_expanded = expand_session_template(session_template, context)
+        
+        # Create parent directory if path contains directory
+        # Extract potential paths from the expanded string
+        import re
+        path_match = re.search(r'["\']?(/[^"\']*\.json)["\']?', session_expanded)
+        if path_match:
+            session_file = path_match.group(1)
+            session_dir = os.path.dirname(session_file)
+            if session_dir:
+                os.makedirs(session_dir, exist_ok=True)
+        
+        # Add expanded argument to command
+        # Note: session_arg can contain multiple parts like: --session "path"
+        # We use shlex.split to properly handle quoted strings
+        import shlex as shlex_module
+        session_parts = shlex_module.split(session_expanded)
+        cmd_parts.extend(session_parts)
+        
+        if debug:
+            print(f"[SESSION] Session arg: {session_expanded}", file=sys.stderr)
 
     return ' '.join(shlex.quote(p) for p in cmd_parts)
 

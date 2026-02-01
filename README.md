@@ -253,11 +253,23 @@ UCAS injects the following context into all hooks and the main process:
 - `UCAS_MAIN_COMMAND`: The full command line used to launch the primary agent.
 
 ### ACLI Selection
-Priority order:
+The ACLI (Agent CLI) to use is determined by this priority order:
+
 1. `override_acli` (from override files - veto power)
-2. `executable` (if this is an ACLI definition)
-3. Agent's `default_acli` (if in `allowed_acli`)
-4. First item in `allowed_acli`
+2. `acli.name` (if this entity IS an ACLI definition after merge)
+3. First item in `allowed_acli` list (= default)
+
+**`allowed_acli` behavior:**
+- Multiple items: First is default, validates selection against list
+- Single item: Forces that ACLI (useful for project-specific requirements)
+
+```yaml
+# .ucas/ucas.yaml
+allowed_acli:
+  - acli-pi        # ← Default ACLI for this project
+  - acli-claude
+  - acli-gemini
+```
 
 ## Example Configurations
 
@@ -266,7 +278,6 @@ Priority order:
 # mods/basic-chat/ucas.yaml
 name: basic-chat
 requested_model: gpt-4
-default_acli: acli-claude
 ```
 
 ### Mod Definition
@@ -278,19 +289,27 @@ description: Adds git operation capabilities
 
 ### ACLI Definition
 ```yaml
-# mods/acli-claude/ucas.yaml
-name: acli-claude
-executable: claude
-
-arg_mapping:
-  prompt_file: --system
-  skills_dir: --tools
-  model_flag: --model
-
-model_mapping:
-  gpt-4: sonnet-3.5
-  default: sonnet-3.5
+# mods/acli-pi/ucas.yaml
+acli:
+  name: acli-pi
+  executable: pi
+  
+  arg_mapping:
+    prompt_file: --append-system-prompt
+    skills_dir: --skill
+    model_flag: --model
+  
+  model_mapping:
+    gpt-4: gemini-2.5-flash
+    default: gemini-2.5-flash
+  
+  session_arg: --session "$HOME/.pi/sessions/{uuid}.json"
 ```
+
+**Note**: Each ACLI defines how skills are passed:
+- `acli-pi`: `--skill <dir>`
+- `acli-claude`: `--add-dir <dir>`
+- `acli-gemini`: `--include-directories <dir>`
 
 ### Team Definition
 Any mod can define a team orchestration by including a `team` key in its `ucas.yaml`:

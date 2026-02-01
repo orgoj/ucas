@@ -1,17 +1,21 @@
 # Claude ACLI definition
 
-name: acli-claude
-executable: claude
-
-arg_mapping:
-  prompt_file: --system
-  skills_dir: --tools
-  model_flag: --model
-
-model_mapping:
-  gpt-4: sonnet-3.5
-  gpt-4-turbo: sonnet-4
-  gpt-5.2-pro: opus-4.5
-  default: sonnet-3.5
-
-ignore_unknown: false
+acli:
+  name: acli-claude
+  executable: claude
+  
+  arg_mapping:
+    prompt_file: --append-system-prompt
+    skills_dir: --add-dir  # Additional directories to allow tool access to
+    model_flag: --model
+  
+  model_mapping:
+    gpt-4: sonnet
+    gpt-4-turbo: sonnet-4
+    gpt-5.2-pro: opus-4.5
+    default: sonnet
+  
+  ignore_unknown: false
+  
+  # Session management: Claude uses --session-id with UUID only (no path)
+  session_arg: --session-id {uuid}

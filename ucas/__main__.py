@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import List, Dict, Any, Tuple
 
 from .cli import parse_args
-from .resolver import find_entity, is_acli, load_config, get_layer_config_paths, get_search_paths
+from .resolver import find_entity, is_acli, load_config, get_layer_config_paths, get_search_paths, get_acli_config
 from .merger import merge_configs, collect_skills, _merge_dicts
 from .yaml_parser import parse_yaml
 from .launcher import (
@@ -137,11 +137,13 @@ def _prepare_and_run_member(
         merged_config,
         acli_config,
         skills_dirs,
+        context,
         debug
     )
 
-    # Update context with dynamic info
-    context['UCAS_ACLI_EXE'] = acli_config.get('executable', '')
+    # Update context with dynamic info (support nested ACLI structure)
+    acli_def = get_acli_config(acli_config)
+    context['UCAS_ACLI_EXE'] = acli_def.get('executable', '')
     context['UCAS_MAIN_COMMAND'] = main_cmd
 
     # Chain hooks for tmux execution
@@ -209,22 +211,38 @@ def run_agent(args):
     if args.debug:
         print(f"[DEBUG] Found entity on disk: {entity_path}", file=sys.stderr)
 
-    mod_paths = []
-    for mod_name in cli_mods:
-        m_path = find_entity(mod_name)
-        if not m_path:
-            raise LaunchError(f"Mod '{mod_name}' not found")
-        mod_paths.append(m_path)
+    # Load base config to get default mods
+    (sys_cfg, sys_ovr), (usr_cfg, usr_ovr), (prj_cfg, prj_ovr) = get_layer_config_paths()
+    base_config = {}
+    
+    # Merge order: System -> User -> Project (Sandwich base)
+    for layer_name, cfg in [('System', sys_cfg), ('User', usr_cfg), ('Project', prj_cfg)]:
+        if cfg:
+            config = parse_yaml(cfg.read_text())
+            base_config = _merge_dicts(base_config, config, args.debug, f"Base:{layer_name}")
+    
+    # Extract default mods from config
+    default_mods = base_config.get('mods', [])
+    if isinstance(default_mods, str):
+        default_mods = [default_mods]
+    
+    # Combine default mods with CLI mods (CLI mods come after defaults)
+    all_mods = default_mods + cli_mods
+    
+    if args.debug and default_mods:
+        print(f"[DEBUG] Default mods from config: {default_mods}", file=sys.stderr)
+        print(f"[DEBUG] All mods (default + CLI): {all_mods}", file=sys.stderr)
 
     # Note: run_agent strictly runs a single member. 
     # If the entity is a team, it will still just run its 'base' personality if it has one.
     _prepare_and_run_member(
         member_name=name,
         agent_name=name,
-        mods=cli_mods,
+        mods=all_mods,
         dry_run=args.dry_run,
         debug=args.debug
     )
+
 
 
 def run_config_team(team_name: str, team_def: Dict[str, Any], cli_mods: List[str], args):

@@ -10,6 +10,100 @@ UCAS (Universal CLI Agent System) is a vendor-agnostic agent orchestration syste
 
 **Zero Dependencies**: Python 3.6+ stdlib only, with a custom YAML parser to avoid external dependencies.
 
+## Core Architecture Philosophy
+
+**CRITICAL UNDERSTANDING**: UCAS is built on two fundamental principles:
+
+### 1. General Merge + Interpretation
+UCAS core does **NOT** have hardcoded behavior for specific features. Instead:
+- **Merge**: Combine YAML configs from multiple layers (system → project → agent → mods → overrides)
+- **Interpret**: Read resulting YAML and execute what it says
+
+```
+┌─────────────────────────────────────────┐
+│  UCAS Core (Python)                     │
+│  • Merge YAML layers                    │
+│  • Interpret merged config              │
+│  • Execute commands                     │
+│  • NO feature-specific logic            │
+└─────────────────────────────────────────┘
+                  ▲
+                  │ reads & merges
+                  │
+┌─────────────────────────────────────────┐
+│  Configuration (YAML)                   │
+│  • Defines ALL behavior                 │
+│  • Each mod/ACLI specifies its needs    │
+│  • session_arg, arg_mapping, etc.       │
+└─────────────────────────────────────────┘
+```
+
+### 2. Behavior Defined in Mods/ACLIs
+**Everything** is configured in YAML, not code:
+- How to pass skills? → `arg_mapping.skills_dir` in ACLI YAML
+- How to manage sessions? → `session_arg` template in ACLI YAML
+- What hooks to run? → `hooks` in mod YAML
+- What models to use? → `model_mapping` in ACLI YAML
+
+**This is what makes UCAS infinitely extensible** - you can add any feature by creating a mod/ACLI with the right YAML, without touching Python code.
+
+### Example: Adding Session Management
+❌ **WRONG** (hardcoded):
+```python
+if acli_name == 'pi':
+    cmd += f' --session {session_path}'
+elif acli_name == 'claude':
+    cmd += f' --session-id {uuid}'
+```
+
+✅ **CORRECT** (YAML-driven):
+```yaml
+# acli-pi/ucas.yaml
+acli:
+  session_arg: --session "$HOME/.pi/sessions/{uuid}.json"
+
+# acli-claude/ucas.yaml
+acli:
+  session_arg: --session-id {uuid}
+```
+
+```python
+# launcher.py - generic interpretation
+if 'session_arg' in acli_def:
+    session_expanded = expand_session_template(acli_def['session_arg'], context)
+    cmd_parts.extend(shlex.split(session_expanded))
+```
+
+**Remember**: If you're adding if/elif logic for specific ACLIs or features, you're breaking the architecture. Add a YAML field instead.
+
+## KISS Development Principles
+
+**CRITICAL**: These principles must be followed for ALL development:
+
+1. **YAML-Driven Configuration** - Everything configurable must be in YAML, not hardcoded in Python
+   - ✅ GOOD: `session_arg: --session "$HOME/.pi/sessions/{uuid}.json"` in YAML
+   - ❌ BAD: Separate `session_path` and `session_arg` fields requiring complex logic
+
+2. **Minimal Run Logic** - The `launcher.py` and `__main__.py` should have minimal hardcoded behavior
+   - Configuration defines behavior, code just executes it
+   - Use template expansion (`{uuid}`, `{agent}`, `$HOME`) instead of special cases
+   - If you need 2+ fields to configure one feature, you're doing it wrong
+
+3. **Template-Based Extensibility** - Use string templates with placeholders for flexibility
+   - Support: `{uuid}`, `{agent}`, `{team}`, `{project_root}`, `$HOME`, `$VAR`
+   - One template string can express complex patterns
+   - Example: `--flag "$HOME/path/{agent}/{uuid}.ext"`
+
+4. **Merge System Handles Structure** - Trust the YAML merge system
+   - Nested structures (like `acli:`) merge naturally
+   - No special normalization code needed
+   - Backward compatibility via helper functions (`get_acli_config()`)
+
+5. **Shell-Correct Syntax** - Use `$HOME` not `~` for variables in command strings
+   - `~` only works in interactive shells
+   - Use `os.path.expandvars()` for `$VAR` expansion
+   - Use `shlex.split()` for proper quote handling
+
 ## Development Commands
 
 ### Running Tests
@@ -46,14 +140,25 @@ ucas run basic-chat --dry-run
 # Debug mode (verbose merge tracing)
 ucas run basic-chat --debug
 
-# Run with mods
+# Run with mods (adds to default mods from config)
 ucas run basic-chat +mod-git +debug-mod
+
+# Override ACLI (while keeping default mods)
+ucas run basic-chat +acli-claude
 
 # Run a team
 ucas run-team backend-squad
 ```
 
+**Default Mods**: You can define default mods in `ucas.yaml` that are automatically included in every run:
+```yaml
+mods:
+  - ucas  # Always included unless overridden
+```
+
 ## Architecture
+
+UCAS is a **general-purpose merge + interpret engine**. The core modules perform generic operations (merge YAML, expand templates, run commands) without knowledge of specific ACLIs or features.
 
 ### Core Modules
 
@@ -72,10 +177,10 @@ ucas run-team backend-squad
 - `_merge_dicts()`: Implements suffix-based merge strategies (+, -, !, ?, ~)
 - `collect_skills()`: Aggregates skills directories from agent and mods
 
-**ucas/launcher.py** - Command building & tmux execution
-- `select_acli()`: Priority-based ACLI selection (override → executable → default → allowed)
-- `translate_model()`: Maps requested_model using ACLI's model_mapping
-- `build_command()`: Assembles final CLI command from arg_mapping
+**ucas/launcher.py** - Command building & tmux execution (generic interpretation)
+- `select_acli()`: Reads `allowed_acli` list (first = default, single = forced)
+- `translate_model()`: Uses ACLI's `model_mapping` to translate models
+- `build_command()`: Interprets `arg_mapping` and `session_arg` from ACLI config
 - `generate_prompt()`: Concatenates PROMPT.md files from agent + mods
 - `run_tmux()`: Executes in new tmux window with environment context
 
@@ -134,7 +239,7 @@ UCAS injects these environment variables into hooks and the main process:
 - `UCAS_AGENT_DIR`: Absolute path to the mod's definition directory
 - `UCAS_AGENT_NOTES`: Project-specific storage path (`./.ucas/notes/<agent>/`)
 - `UCAS_PROJECT_ROOT`: Absolute path to the current project
-- `UCAS_SESSION_ID`: Unique ID for the current execution session
+- `UCAS_SESSION_ID`: Unique UUID4 for the current execution session
 - `UCAS_ACLI_EXE`: The resolved ACLI executable
 - `UCAS_MAIN_COMMAND`: The full command line used to launch the primary agent
 
@@ -147,13 +252,39 @@ Mods can define executable hooks:
 
 Hook execution chain: `exports && prerun && main_cmd && postrun` (failures stop the chain)
 
+## Mod Organization
+
+### System-Wide Mods (`./mods/`)
+- **Location**: `./mods/` in the UCAS repository
+- **Purpose**: Reusable mods shared across all projects
+- **Examples**: `acli-pi`, `acli-gemini`, `acli-claude`, `mod-git`, `generic`
+- **Version Control**: Committed to the UCAS repository
+
+### Project-Specific Mods (`./.ucas/mods/`)
+- **Location**: `./.ucas/mods/` in your project directory
+- **Purpose**: Project-specific tools and configurations
+- **Examples**: `ucas` (for UCAS development), project-specific skills
+- **Version Control**: Committed to your project repository
+- **Priority**: Searched before system-wide mods
+
+### Default Mods Configuration
+You can configure default mods at different levels:
+```yaml
+# System-wide default: ./ucas.yaml
+mods:
+  - common-tools
+
+# Project-specific default: ./.ucas/ucas.yaml
+mods:
+  - ucas  # Project development tools
+```
+
 ## Entity Types
 
 ### Agent Definition
 ```yaml
 name: basic-chat
 requested_model: gpt-4
-default_acli: acli-claude
 ```
 
 ### Mod Definition
@@ -169,20 +300,43 @@ hooks:
 
 ### ACLI Definition
 ```yaml
-name: acli-claude
-executable: claude
+# Pi ACLI definition
 
-arg_mapping:
-  prompt_file: --system
-  skills_dir: --tools
-  model_flag: --model
-
-model_mapping:
-  gpt-4: sonnet-3.5
-  default: sonnet-3.5
-
-ignore_unknown: false  # Error on unknown models
+acli:
+  name: acli-pi  # Identifies this ACLI after merge
+  executable: pi
+  
+  arg_mapping:
+    prompt_file: --append-system-prompt
+    skills_dir: --skill
+    model_flag: --model
+  
+  model_mapping:
+    gpt-4: gemini-2.5-flash
+    default: gemini-2.5-flash
+  
+  ignore_unknown: false
+  
+  # Optional: session management with template expansion
+  session_arg: --session "$HOME/.pi/sessions/{uuid}.json"
 ```
+
+**Note**: 
+- `acli.name` field identifies which ACLI was selected after merge
+- Directory name (e.g. `mods/acli-pi/`) is used for resolution
+- Flat structure (without `acli:` wrapper) is still supported for backward compatibility
+
+**ACLI Selection Logic**:
+- Uses first item in `allowed_acli` list as default
+- Single item in `allowed_acli` = forced ACLI
+- `override_acli` in override file = veto power
+
+**Session Management**: Use `session_arg` with complete argument template including placeholders:
+- `{uuid}` - Session UUID (UCAS_SESSION_ID)
+- `{agent}` - Agent name
+- `{team}` - Team name (if applicable)
+- `{project_root}` - Project root directory
+- `$HOME`, `$VAR` - Environment variables
 
 ### Team Definition
 ```yaml
@@ -198,18 +352,21 @@ team:
 
 ## Key Design Principles
 
-1. **No external dependencies** - Python 3.6+ stdlib only
-2. **Skills as arguments** - No PATH manipulation, passed via `arg_mapping.skills_dir`
-3. **First match wins** - Entity search stops at first found directory
-4. **Dynamic path expansion** - Agents/mods can add search paths during resolution
-5. **Last wins merge** - Later layers override earlier ones (except with override files)
-6. **Skills/Hooks aggregated** - All `skills/` directories and `hooks` commands are collected
+1. **KISS - YAML-driven configuration** - All behavior defined in YAML, minimal hardcoded logic
+2. **Template-based extensibility** - Use `{placeholders}` and `$VAR` for flexible configuration
+3. **No external dependencies** - Python 3.6+ stdlib only
+4. **Skills as arguments** - No PATH manipulation, passed via `arg_mapping.skills_dir`
+5. **First match wins** - Entity search stops at first found directory
+6. **Dynamic path expansion** - Agents/mods can add search paths during resolution
+7. **Last wins merge** - Later layers override earlier ones (except with override files)
+8. **Skills/Hooks aggregated** - All `skills/` directories and `hooks` commands are collected
+9. **Nested structure support** - `acli:` block for clear separation, backward compatible with flat
 
 ## Common Patterns
 
 ### Adding a New Agent
 1. Create directory in `mods/<agent-name>/`
-2. Add `ucas.yaml` with `name`, `requested_model`, `default_acli`
+2. Add `ucas.yaml` with `name`, `requested_model`
 3. Optionally add `PROMPT.md` for system prompt
 4. Optionally add `skills/` directory for tools
 
@@ -219,6 +376,32 @@ team:
 3. Optionally add `PROMPT.md` for additional instructions
 4. Optionally add `skills/` directory for additional tools
 5. Optionally add `hooks` for lifecycle automation
+
+### Adding a New ACLI
+1. Create directory in `mods/<acli-name>/`
+2. Add `ucas.yaml` with nested `acli:` structure:
+   ```yaml
+   # My Agent ACLI definition
+   
+   acli:
+     name: acli-myagent  # Identifies this ACLI after merge
+     executable: myagent
+     arg_mapping:
+       prompt_file: --system-prompt
+       skills_dir: --tools
+       model_flag: --model
+     model_mapping:
+       gpt-4: my-agent-premium
+       default: my-agent-free
+     ignore_unknown: false
+     
+     # Optional: session management
+     session_arg: --session "$HOME/.myagent/sessions/{uuid}.json"
+   ```
+3. `acli.name` identifies the ACLI post-merge; directory name (e.g., `mods/acli-myagent/`) is used for resolution
+4. Use `$HOME` not `~` for environment variables in templates
+5. Use template placeholders: `{uuid}`, `{agent}`, `{team}`, `{project_root}`
+6. **CRITICAL**: Keep it KISS - `session_arg` should be complete argument string, not split into multiple fields
 
 ### Testing Configuration Merging
 1. Use `--debug` flag to see merge trace

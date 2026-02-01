@@ -1,0 +1,5 @@
+# UCAS Development Mod
+# Project-specific mod for developing the UCAS system itself
+
+name: ucas
+description: Development tools and skills for UCAS system development

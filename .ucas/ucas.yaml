@@ -1,0 +1,12 @@
+# Project-specific UCAS configuration
+# This file sets defaults for the UCAS project itself
+
+# Default mods to include in every run
+mods:
+  - ucas
+
+# Allowed ACLIs
+allowed_acli:
+  - acli-pi
+  - acli-gemini
+  - acli-claude
