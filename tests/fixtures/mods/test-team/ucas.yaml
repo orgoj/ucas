@@ -1,0 +1,5 @@
+team:
+  mods: [mod-a]
+  agents:
+    member1:
+      mods: [basic-agent]

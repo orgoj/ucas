@@ -12,7 +12,7 @@ The system must handle everything else automatically: find the default team, ins
 
 ---
 
-## Concept change [COMPLETED]
+## Unified Architecture [COMPLETED]
 
 All is mod concept:
 - [x] team je definice v ucas.yaml v sekci teams (v projektu, u uživatele nebo v modu) (consolidated to mods/ directory)

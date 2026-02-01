@@ -245,19 +245,18 @@ model_mapping:
 ```
 
 ### Team Definition
-Teams are typically defined in `.ucas/ucas.yaml` or any mod's `ucas.yaml` under the `teams` key:
+Any mod can define a team orchestration by including a `team` key in its `ucas.yaml`:
 
 ```yaml
-# .ucas/ucas.yaml
-teams:
-  backend-squad:
-    mods: [messaging-mod] # Global mods for all members
-    agents:
-      karel:
-        mods: [basic-chat, api-mod, git-mod]
-        # other member flags can go here
-      lucie:
-        mods: [basic-chat, aws-mod]
+# team-alpha/ucas.yaml
+team:
+  mods: [messaging-mod] # Global mods for all members
+  agents:
+    karel:
+      mods: [basic-chat, api-mod, git-mod]
+      # other member flags can go here
+    lucie:
+      mods: [basic-chat, aws-mod]
 ```
 
 Executing a team:
@@ -278,7 +277,7 @@ ucas run-team backend-squad
 1. **No external dependencies** - Python 3.6+ stdlib only, custom YAML parser
 2. **Skills as arguments** - No PATH manipulation, skills passed via `arg_mapping.skills_dir`
 3. **First match wins** - Entity search for mods/agents stops at first found directory (Project → User → System).
-4. **Horizontal Merge for Teams** - Team definitions are aggregated from all `ucas.yaml` layers. Later layers can override specific teams or add new ones.
+4. **Mod-based Teams** - A team is just a mod containing a `team` definition. It follows the standard Sandwich Merge.
 5. **Last wins merge** - Dict keys in configurations are overwritten by later layers.
 6. **Skills/Hooks aggregated** - All `skills/` directories and `hooks` commands are collected and combined.
 

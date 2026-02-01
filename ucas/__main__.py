@@ -237,51 +237,32 @@ def run_config_team(team_name: str, team_def: Dict[str, Any], cli_mods: List[str
 
 
 def run_team(args):
-    """Run a team of agents (Config-First)."""
+    """Run a team of agents (Simplified: Team is a Mod)."""
     name = args.team
     
-    # 1. Base Merge (System -> User -> Project)
-    # Teams can be defined in any of these layers.
-    (system_paths, user_paths, project_paths) = get_layer_config_paths()
-    
-    # We need a horizontal merge of ALL ucas.yaml files found in layers
-    # to see the full 'teams' dictionary.
-    base_config = {}
-    
-    # Order: System -> User -> Project (later overrides earlier)
-    for pair in [system_paths, user_paths, project_paths]:
-        config_path = pair[0]
-        if config_path and config_path.exists():
-            if args.debug:
-                print(f"[DEBUG] Loading team config from: {config_path}", file=sys.stderr)
-            from .merger import _merge_dicts # Internal helper for base merge
-            from .yaml_parser import parse_yaml
-            try:
-                layer_data = parse_yaml(config_path.read_text())
-                base_config = _merge_dicts(base_config, layer_data, args.debug, str(config_path))
-            except Exception as e:
-                if args.debug:
-                    print(f"Warning: Failed to load {config_path}: {e}", file=sys.stderr)
-
-    # 2. Check 'teams' section in merged config
-    teams = base_config.get('teams', {})
-    if name in teams:
-        if args.debug:
-            print(f"[TEAM] Found in config: {name}", file=sys.stderr)
-        run_config_team(name, teams[name], [], args)
-        return
-
-    # 3. Check if name refers to a mod directory that defines a team
+    # 1. Resolve team name as a mod
     entity_path = find_entity(name)
-    if entity_path:
-        mod_config = load_config(entity_path)
-        if 'agents' in mod_config or 'members' in mod_config:
-            if args.debug:
-                print(f"[TEAM] Found as mod directory: {entity_path}", file=sys.stderr)
-            run_config_team(name, mod_config, [], args)
-            return
+    if not entity_path:
+        raise LaunchError(f"Team mod '{name}' not found in mods/ library.")
 
-    raise LaunchError(f"Team '{name}' not found in 'teams' config section or as a team-mod directory.")
+    # 2. Standard Sandwich Merge for this mod
+    # This pulls in defaults from System/User/Project layers and merges with mod's ucas.yaml.
+    merged_config = merge_configs(entity_path, [], args.debug)
+
+    # 3. Check for singular 'team' key
+    team_def = merged_config.get('team')
+    if not team_def:
+        # Fallback to 'members'/'agents' for backward compatibility if it's a team mod directory
+        # but the user didn't wrap it in 'team:' key yet.
+        if 'agents' in merged_config or 'members' in merged_config:
+            team_def = merged_config
+        else:
+            raise LaunchError(f"Mod '{name}' does not define a 'team' (missing 'team' key).")
+
+    if args.debug:
+        print(f"[TEAM] Found team definition in: {entity_path}", file=sys.stderr)
+
+    run_config_team(name, team_def, [], args)
 
 
 if __name__ == '__main__':

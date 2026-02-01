@@ -1,9 +1,2 @@
 allowed_acli: [acli-test]
 default_acli: acli-test
-
-teams:
-  test-team:
-    mods: [mod-a]
-    agents:
-      member1:
-        mods: [basic-agent]

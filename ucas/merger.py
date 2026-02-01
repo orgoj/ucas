@@ -98,22 +98,32 @@ def _merge_dicts(base: Dict[str, Any], overlay: Dict[str, Any], debug: bool, lay
                     result[key] = value
             else:
                 result[key] = value
-        elif key == 'teams':
-            # Aggregate teams (don't overwrite)
+        elif key == 'team':
+            # Merging the singular 'team' definition
             if key in result:
                 if isinstance(result[key], dict) and isinstance(value, dict):
-                    # Merge teams dictionary: later layers overwrite SAME team, 
-                    # but accumulate NEW teams.
-                    merged_teams = result[key].copy()
-                    for team_name, team_def in value.items():
-                        if team_name in merged_teams and isinstance(merged_teams[team_name], dict) and isinstance(team_def, dict):
-                            # Deep merge individual team definition too? 
-                            # KISS: Lexical override of the whole team is easier to predict,
-                            # but let's do a basic nested merge for better flexibility.
-                            merged_teams[team_name] = _merge_dicts(merged_teams[team_name], team_def, debug, f"{layer_name}.teams.{team_name}")
-                        else:
-                            merged_teams[team_name] = team_def
-                    result[key] = merged_teams
+                    merged_team = result[key].copy()
+                    
+                    # Merge 'mods' list
+                    if 'mods' in value:
+                        base_mods = merged_team.get('mods', [])
+                        over_mods = value['mods']
+                        merged_team['mods'] = base_mods + over_mods
+
+                    # Merge 'agents' dict
+                    if 'agents' in value:
+                        base_agents = merged_team.get('agents', {})
+                        over_agents = value['agents']
+                        
+                        # Use _merge_dicts for deep merge of agents (karel: mods, etc.)
+                        merged_team['agents'] = _merge_dicts(base_agents, over_agents, debug, f"{layer_name}.team.agents")
+                    
+                    # Other keys (sleep_seconds, etc.) just overwrite
+                    for k, v in value.items():
+                        if k not in ('mods', 'agents'):
+                            merged_team[k] = v
+                    
+                    result[key] = merged_team
                 else:
                     result[key] = value
             else:
