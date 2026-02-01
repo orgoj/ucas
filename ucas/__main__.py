@@ -4,15 +4,90 @@ UCAS entry point: python -m ucas
 
 import sys
 from pathlib import Path
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Tuple
 
 from .cli import parse_args
-from .resolver import find_entity, is_acli, load_config, get_layer_config_paths
-from .merger import merge_configs, collect_skills
+from .resolver import find_entity, is_acli, load_config, get_layer_config_paths, get_search_paths
+from .merger import merge_configs, collect_skills, _merge_dicts
+from .yaml_parser import parse_yaml
 from .launcher import (
     select_acli, build_command, run_tmux, LaunchError, 
     prepare_context, HookRunner, get_context_export_str
 )
+
+
+def resolve_entities(agent_name: str, mods: List[str], debug: bool = False) -> Tuple[Path, List[Path]]:
+    """
+    Resolve agent and mods with dynamic search path expansion.
+    """
+    # 1. Base config merge to get mod_path/strict
+    (sys_cfg, sys_ovr), (usr_cfg, usr_ovr), (prj_cfg, prj_ovr) = get_layer_config_paths()
+    base_config = {}
+    
+    # Merge order: System -> User -> Project (Sandwich base)
+    for layer_name, cfg in [('System', sys_cfg), ('User', usr_cfg), ('Project', prj_cfg)]:
+        if cfg:
+            config = parse_yaml(cfg.read_text())
+            base_config = _merge_dicts(base_config, config, debug, f"Base:{layer_name}")
+
+    extra_paths = base_config.get('mod_path', [])
+    if isinstance(extra_paths, str): extra_paths = [extra_paths]
+    strict = base_config.get('strict', False)
+    
+    search_paths = get_search_paths(extra_paths, strict)
+    
+    if debug:
+        print(f"[DEBUG] Initial search paths: {[str(p) for p in search_paths]}", file=sys.stderr)
+
+    # 2. Resolve Agent
+    agent_path = find_entity(agent_name, search_paths)
+    if not agent_path:
+        raise LaunchError(f"Agent '{agent_name}' not found")
+
+    if debug:
+        print(f"[DEBUG] Found agent: {agent_path}", file=sys.stderr)
+
+    # Expand search paths from Agent
+    agent_config = load_config(agent_path)
+    if 'mod_path' in agent_config:
+        new_paths = agent_config['mod_path']
+        if isinstance(new_paths, str): new_paths = [new_paths]
+        for p in new_paths:
+            path = Path(p)
+            if not path.is_absolute():
+                path = agent_path / path
+            if path.exists() and path.is_dir():
+                if path not in search_paths:
+                    search_paths.append(path)
+                    if debug:
+                        print(f"[DEBUG] Added search path from agent: {path}", file=sys.stderr)
+
+    # 3. Resolve Mods
+    mod_paths = []
+    for mod_name in mods:
+        m_path = find_entity(mod_name, search_paths)
+        if not m_path:
+            raise LaunchError(f"Mod '{mod_name}' not found")
+        mod_paths.append(m_path)
+        if debug:
+            print(f"[DEBUG] Found mod: {m_path}", file=sys.stderr)
+
+        # Expand search paths from Mod
+        m_config = load_config(m_path)
+        if 'mod_path' in m_config:
+            new_paths = m_config['mod_path']
+            if isinstance(new_paths, str): new_paths = [new_paths]
+            for p in new_paths:
+                path = Path(p)
+                if not path.is_absolute():
+                    path = m_path / path
+                if path.exists() and path.is_dir():
+                    if path not in search_paths:
+                        search_paths.append(path)
+                        if debug:
+                             print(f"[DEBUG] Added search path from mod '{mod_name}': {path}", file=sys.stderr)
+
+    return agent_path, mod_paths
 
 
 def _prepare_and_run_member(
@@ -28,23 +103,8 @@ def _prepare_and_run_member(
     Prepare and run a single agent member.
     Shared logic between run_agent and run_team.
     """
-    # Find agent
-    agent_path = find_entity(agent_name)
-    if not agent_path:
-        raise LaunchError(f"Agent '{agent_name}' not found")
-
-    if debug:
-        print(f"[DEBUG] Found agent: {agent_path}", file=sys.stderr)
-
-    # Find mods
-    mod_paths = []
-    for mod_name in mods:
-        mod_path = find_entity(mod_name)
-        if not mod_path:
-            raise LaunchError(f"Mod '{mod_name}' not found")
-        mod_paths.append(mod_path)
-        if debug:
-            print(f"[DEBUG] Found mod: {mod_path}", file=sys.stderr)
+    # Resolve entities with dynamic paths
+    agent_path, mod_paths = resolve_entities(agent_name, mods, debug)
 
     # Merge configs
     merged_config = merge_configs(agent_path, mod_paths, debug)

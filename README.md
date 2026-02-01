@@ -147,6 +147,27 @@ UCAS uses a multi-layer "Sandwich Merge" system to build the final configuration
 - `~/.ucas/ucas-override.yaml` - User veto
 - `./.ucas/ucas-override.yaml` - Project veto (strongest)
 
+### Custom Mod Search Paths
+
+You can expand the mod search library by defining `mod_path` in any `ucas.yaml` file.
+
+```yaml
+# ./.ucas/ucas.yaml
+mod_path:
+  - ./external-mods
+  - /opt/shared/ucas-library
+```
+
+Behavior:
+1. **Dynamic Expansion**: If an agent or a mod defines `mod_path`, those paths are added to the search list for subsequent mod resolutions.
+2. **Relative Paths**: Paths defined in a mod's `ucas.yaml` are relative to that mod's directory. Paths in project/user/system configs are relative to the project root.
+3. **Strict Mode**: Set `strict: true` in a config layer to disable searching in User and System layers.
+
+```yaml
+# strict project-only mode
+strict: true
+```
+
 **System Layer Auto-Detection:**
 - If `UCAS_HOME` is set, uses `$UCAS_HOME/mods/`
 - If not set, uses `<package-install-dir>/mods/`
@@ -303,8 +324,9 @@ ucas run-team backend-squad
 
 1. **No external dependencies** - Python 3.6+ stdlib only, custom YAML parser
 2. **Skills as arguments** - No PATH manipulation, skills passed via `arg_mapping.skills_dir`
-3. **First match wins** - Entity search for mods/agents stops at first found directory (Project → User → System).
-4. **Mod-based Teams** - A team is just a mod containing a `team` definition. It follows the standard Sandwich Merge.
+3. **First match wins** - Entity search for mods/agents stops at first found directory. Default order: Project → Custom Paths → User → System.
+4. **Dynamic Path Expansion** - Agents and mods can add new search paths during resolution via `mod_path: []`.
+5. **Mod-based Teams** - A team is just a mod containing a `team` definition. It follows the standard Sandwich Merge.
 5. **Last wins merge** - Dict keys in configurations are overwritten by later layers.
 6. **Skills/Hooks aggregated** - All `skills/` directories and `hooks` commands are collected and combined.
 

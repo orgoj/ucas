@@ -4,51 +4,71 @@ Entity resolution across Project → User → System layers.
 
 import os
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import Optional, Tuple, List
 
 from .yaml_parser import parse_yaml
 
 
-def get_search_paths() -> list:
-    """Get search paths in order: Project → User → System."""
+def get_search_paths(extra_paths: Optional[List[str]] = None, strict: bool = False) -> List[Path]:
+    """
+    Get search paths in order: 
+    1. Project default: ./.ucas/mods/
+    2. Extra paths from configs: mod_path: []
+    3. User layer: ~/.ucas/mods/ (unless strict)
+    4. System layer: $UCAS_HOME/mods/ (unless strict)
+    """
     paths = []
 
-    # Project layer: ./.ucas/mods/
+    # 1. Project layer: ./.ucas/mods/ (ALWAYS FIRST)
     project_path = Path.cwd() / '.ucas' / 'mods'
     if project_path.exists():
         paths.append(project_path)
 
-    # User layer: ~/.ucas/mods/
-    user_path = Path.home() / '.ucas' / 'mods'
-    if user_path.exists():
-        paths.append(user_path)
+    # 2. Extra paths from configs
+    if extra_paths:
+        for p in extra_paths:
+            path = Path(p)
+            if not path.is_absolute():
+                # Relative to CWD (Project Root)
+                path = Path.cwd() / path
+            if path.exists() and path.is_dir():
+                if path not in paths:
+                    paths.append(path)
 
-    # System layer: $UCAS_HOME/mods/ or package location
-    ucas_home = os.environ.get('UCAS_HOME')
-    if not ucas_home:
-        # Default to package installation directory
-        # __file__ is .../ucas/resolver.py, so parent.parent is the repo root
-        package_dir = Path(__file__).parent.parent
-        ucas_home = str(package_dir)
+    if not strict:
+        # 3. User layer: ~/.ucas/mods/
+        user_path = Path.home() / '.ucas' / 'mods'
+        if user_path.exists():
+            if user_path not in paths:
+                paths.append(user_path)
 
-    system_path = Path(ucas_home) / 'mods'
-    if system_path.exists():
-        paths.append(system_path)
+        # 4. System layer: $UCAS_HOME/mods/ or package location
+        ucas_home = os.environ.get('UCAS_HOME')
+        if not ucas_home:
+            # Default to package installation directory
+            package_dir = Path(__file__).parent.parent
+            ucas_home = str(package_dir)
+
+        system_path = Path(ucas_home) / 'mods'
+        if system_path.exists():
+            if system_path not in paths:
+                paths.append(system_path)
 
     return paths
 
 
-def find_entity(name: str) -> Optional[Path]:
+def find_entity(name: str, search_paths: Optional[List[Path]] = None) -> Optional[Path]:
     """
     Find an entity (agent/mod/ACLI/team) across layers.
     Returns path to entity directory or None.
-    First match wins (Project → User → System).
+    First match wins.
     """
     # Validate entity name - no spaces allowed
     if ' ' in name:
         raise ValueError(f"Entity name '{name}' contains spaces. Entity names must not contain spaces.")
     
-    search_paths = get_search_paths()
+    if search_paths is None:
+        search_paths = get_search_paths()
 
     for base_path in search_paths:
         entity_path = base_path / name
