@@ -8,13 +8,8 @@ allowed_acli:
   - acli-claude
   - acli-pi
   - acli-gemini
-  - acli-echo
-
-default_acli: acli-echo
 
 # Run configuration
 allowed_run:
   - run-bash
   - run-tmux
-
-default_run: run-bash

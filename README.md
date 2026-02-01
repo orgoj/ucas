@@ -275,7 +275,6 @@ Similar to ACLIs, the runner is determined by:
 allowed_run:
   - run-bash
   - run-tmux
-default_run: run-bash
 ```
 
 ## Example Configurations
