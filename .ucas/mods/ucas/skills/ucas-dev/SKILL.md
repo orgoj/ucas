@@ -1,3 +1,8 @@
+---
+name: ucas-dev
+description: "Development tools and skills for UCAS system development"
+---
+
 # UCAS Development Skills
 
 This directory contains skills specifically for developing the UCAS system itself.

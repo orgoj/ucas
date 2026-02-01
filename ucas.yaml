@@ -4,12 +4,12 @@
 mods+:
   - run-bash
 
-allowed_acli:
+allowed_acli+:
   - acli-claude
   - acli-pi
   - acli-gemini
 
 # Run configuration
-allowed_run:
+allowed_run+:
   - run-bash
   - run-tmux

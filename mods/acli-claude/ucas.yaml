@@ -1,5 +1,9 @@
 # Claude ACLI definition
 
+mods+:
+  - name: acli-claude
+    description: Integration with the Claude (Anthropic) CLI
+
 acli:
   name: acli-claude
   executable: claude

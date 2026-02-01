@@ -1,5 +1,9 @@
 # Gemini ACLI definition
 
+mods+:
+  - name: acli-gemini
+    description: Integration with the Gemini (Google) CLI
+
 acli:
   name: acli-gemini
   executable: gemini

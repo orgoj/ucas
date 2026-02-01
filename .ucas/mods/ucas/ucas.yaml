@@ -1,5 +1,8 @@
 # UCAS Development Mod
 # Project-specific mod for developing the UCAS system itself
 
-name: ucas
-description: Development tools and skills for UCAS system development
+# TODO: toto nemuse byt na hlavni urovni, to musi byt nejaky list mods a to se musi pridava, kdyz udelam celkovy merge tak musim mit list vsech
+# asi mods[]+: { name: ucas, description: "UCAS Development Mod" }
+mods+:
+  - name: ucas
+    description: Development tools and skills for UCAS system development

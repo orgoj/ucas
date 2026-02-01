@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
  
+## [0.6.0] - 2026-02-01
+
+### Added
+- **Minimalist (Dumb) Merge Philosophy**: Removed all hardcoded merge defaults. User must now explicitly specify `+`, `-`, etc., for all keys (including `skills`, `mods`, and `hooks`).
+- **Cumulative Mod Metadata**: Added a `mods` list that tracks all applied mods and their metadata (name, description) in the final configuration.
+- **Robust Mod Resolution**: Updated `ucas/__main__.py` to handle `mods` lists containing both simple strings and metadata dictionaries.
+
+### Changed
+- Updated all core `ucas.yaml` files to use explicit `mods+:`, `skills+:`, and `hooks+:` suffixes.
+- Updated `merger.py` to be completely agnostic of key names.
+- Updated `README.md` to reflect the new philosophy and mandatory suffixes.
 ## [0.5.0] - 2026-02-01
 
 ### Added

@@ -185,6 +185,9 @@ By default, UCAS uses "Last Wins" for scalars and "Recursive Merge" for dictiona
 | `key?` | **Default** | Sets the value only if the key is missing in the base. |
 | `key~` | **Update** | Sets the value only if the key already exists in the base. |
 
+> [!IMPORTANT]
+> **Minimalist (Dumb) Merge Philosophy**: UCAS does not automatically assume any merge strategy based on the key name (e.g., `skills` or `hooks` are no longer auto-appended). If you want to merge or append, you **must** use the explicit suffixes (`+`, `-`, etc.). Otherwise, the standard rule applies: scalar/list overwrite, dictionary deep merge.
+
 **Example:**
 ```yaml
 # Layer 1 (Base)
@@ -197,8 +200,6 @@ o1-: [a]       # Result: o1: {}
 new_val?: 42   # Result: new_val: 42
 ```
 
-> [!NOTE]
-> `skills`, `mods`, and `hooks` always use the `+` (append) strategy by default for better out-of-the-box ad-hoc composition.
 
 ## Key Features
 
@@ -309,6 +310,10 @@ run:
 run:
   name: run-tmux
   script: ./tmux_runner.py
+
+mods+:
+  - name: run-tmux
+    description: Execute commands in a new tmux window
 ```
 Data is passed to scripts via CLI flags: `--cmd`, `--agent`, `--team`, `--project-root`, `--session-id`, `--session-name`, `--window-name`.
 
@@ -347,8 +352,8 @@ ucas run-team backend-squad
 3. **First match wins** - Entity search for mods/agents stops at first found directory. Default order: Project → Custom Paths → User → System.
 4. **Dynamic Path Expansion** - Agents and mods can add new search paths during resolution via `mod_path: []`.
 5. **Mod-based Teams** - A team is just a mod containing a `team` definition. It follows the standard Sandwich Merge.
-5. **Last wins merge** - Dict keys in configurations are overwritten by later layers.
-6. **Skills/Hooks aggregated** - All `skills/` directories and `hooks` commands are collected and combined.
+6. **No Hardcoded Merge Strategies** - UCAS is "dumb" and requires explicit suffixes (`+`, `-`, etc.) for any non-default merging.
+7. **Mod Tracking** - Every applied mod contributes its metadata to a cumulative `mods` list in the final configuration.
 
 ## Roadmap
 

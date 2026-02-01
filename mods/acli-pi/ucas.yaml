@@ -1,5 +1,9 @@
 # Pi ACLI definition
 
+mods+:
+  - name: acli-pi
+    description: Integration with the Pi (Google) CLI
+
 acli:
   name: acli-pi
   executable: pi

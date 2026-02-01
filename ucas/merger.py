@@ -100,12 +100,6 @@ def _merge_dicts(base: Dict[str, Any], overlay: Dict[str, Any], debug: bool, lay
             strategy = raw_key[-1]
             key = raw_key[:-1]
 
-        # Handle specialized keys (legacy compat/shortcuts)
-        if key in ('skills', 'mods', 'mod_path') and not strategy:
-            strategy = '+'  # Skills, mods and mod_path always append by default
-        elif key == 'hooks' and not strategy:
-            strategy = '+'  # Hooks always append by default
-
         # Apply strategy
         if strategy == '!':  # OVERRIDE
             result[key] = value

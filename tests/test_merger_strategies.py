@@ -57,11 +57,18 @@ class TestMergerStrategies(unittest.TestCase):
         expected = {"outer": {"inner": [1, 2, 3]}}
         self.assertEqual(_merge_dicts(base, overlay, False, "test"), expected)
 
-    def test_legacy_compat(self):
-        # skills, mods, and hooks should append by default
+    def test_no_longer_auto_append(self):
+        # skills, mods, and hooks should now OVERWRITE by default if no + suffix
         base = {"skills": ["s1"]}
         overlay = {"skills": ["s2"]}
-        expected = {"skills": ["s1", "s2"]}
+        expected = {"skills": ["s2"]}
+        self.assertEqual(_merge_dicts(base, overlay, False, "test"), expected)
+
+    def test_mod_metadata_list_merge(self):
+        # Testing the new mods+: [ {name: ...} ] pattern
+        base = {"mods": ["run-bash"]}
+        overlay = {"mods+": [{"name": "ucas", "description": "dev mod"}]}
+        expected = {"mods": ["run-bash", {"name": "ucas", "description": "dev mod"}]}
         self.assertEqual(_merge_dicts(base, overlay, False, "test"), expected)
 
     def test_practical_onboarding_scenario(self):

@@ -2,3 +2,7 @@ run:
   name: run-bash
   template: |
     bash -c "{cmd}"
+
+mods+:
+  - name: run-bash
+    description: Execute commands in a local bash shell

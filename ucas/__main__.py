@@ -68,7 +68,10 @@ def resolve_entities(agent_name: str, mods: List[str], debug: bool = False) -> T
 
     # 3. Resolve Mods
     mod_paths = []
-    for mod_name in mods:
+    for mod_item in mods:
+        # Extract name if it's a dict (e.g. {name: mod-name, description: ...})
+        mod_name = mod_item['name'] if isinstance(mod_item, dict) else mod_item
+        
         m_path = find_entity(mod_name, search_paths)
         if not m_path:
             raise LaunchError(f"Mod '{mod_name}' not found")
@@ -241,10 +244,13 @@ def run_agent(args):
             config = parse_yaml(cfg.read_text())
             base_config = _merge_dicts(base_config, config, args.debug, f"Base:{layer_name}")
     
-    # Extract default mods from config
-    default_mods = base_config.get('mods', [])
-    if isinstance(default_mods, str):
-        default_mods = [default_mods]
+    # Extract default mods names/specs from config
+    raw_default_mods = base_config.get('mods', [])
+    if isinstance(raw_default_mods, str):
+        raw_default_mods = [raw_default_mods]
+    
+    # Keep as list of entities (can be strings or dictionaries with metadata)
+    default_mods = raw_default_mods
     
     # Combine default mods with CLI mods (CLI mods come after defaults)
     all_mods = default_mods + cli_mods

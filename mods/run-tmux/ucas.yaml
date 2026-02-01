@@ -1,3 +1,7 @@
 run:
   name: run-tmux
   script: ./tmux_runner.py
+
+mods+:
+  - name: run-tmux
+    description: Execute commands in a new tmux window

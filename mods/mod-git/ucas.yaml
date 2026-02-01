@@ -1,4 +1,5 @@
 # Git operations mod
 
-name: mod-git
-description: Adds git operation capabilities
+mods+:
+  - name: mod-git
+    description: Adds git operation capabilities
