@@ -25,6 +25,7 @@ def parse_args(argv=None):
     # run-team command (for Slice 5)
     team_parser = subparsers.add_parser('run-team', help='Run a team of agents')
     team_parser.add_argument('team', help='Team name to run')
+    team_parser.add_argument('mods', nargs='*', help='Mods to apply to all team members')
     team_parser.add_argument('--dry-run', action='store_true', help='Show commands without executing')
     team_parser.add_argument('--debug', action='store_true', help='Verbose merge tracing')
 
@@ -35,7 +36,7 @@ def parse_args(argv=None):
         sys.exit(1)
 
     # Process mods: extract +mod arguments
-    if args.command == 'run' and args.mods:
+    if args.command in ('run', 'run-team') and args.mods:
         processed_mods = []
         for mod in args.mods:
             if mod.startswith('+'):

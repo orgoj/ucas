@@ -1,5 +1,6 @@
-run:
+run!:
   name: run-bash
+  single: true
   template: |
     bash -c "{cmd}"
 

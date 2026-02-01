@@ -89,8 +89,16 @@ def is_acli(entity_path: Path) -> bool:
 
     try:
         config = parse_yaml(config_file.read_text())
-        # Support both nested 'acli: { executable: ... }' and flat 'executable: ...'
-        return 'executable' in config or ('acli' in config and 'executable' in config.get('acli', {}))
+        # Support suffixes like acli! or executable!
+        keys = list(config.keys())
+        has_exe = any(k.startswith('executable') for k in keys)
+        if not has_exe and any(k.startswith('acli') for k in keys):
+            # Check inside nested acli block
+            acli_key = next(k for k in keys if k.startswith('acli'))
+            acli_block = config[acli_key]
+            if isinstance(acli_block, dict):
+                has_exe = any(k.startswith('executable') for k in acli_block.keys())
+        return has_exe
     except Exception:
         return False
 
@@ -103,22 +111,25 @@ def is_run_mod(entity_path: Path) -> bool:
 
     try:
         config = parse_yaml(config_file.read_text())
-        return 'run' in config
+        return any(k.startswith('run') for k in config.keys())
     except Exception:
         return False
 
 
 def get_acli_config(config: Dict[str, Any]) -> Dict[str, Any]:
-    """Extract ACLI configuration, supporting both nested and flat structures."""
-    if 'acli' in config:
-        return config['acli']
-    # Backward compatibility: return config itself if flat structure
+    """Extract ACLI configuration, supporting suffixes."""
+    for k in config:
+        if k.startswith('acli') and (len(k) == 4 or k[4] in ('+', '-', '!', '?', '~')):
+            return config[k]
     return config
 
 
 def get_run_config(config: Dict[str, Any]) -> Dict[str, Any]:
-    """Extract run configuration."""
-    return config.get('run', {})
+    """Extract run configuration, supporting suffixes."""
+    for k in config:
+        if k.startswith('run') and (len(k) == 3 or k[3] in ('+', '-', '!', '?', '~')):
+            return config[k]
+    return {}
 
 
 def load_config(entity_path: Path) -> dict:

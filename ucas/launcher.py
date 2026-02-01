@@ -353,11 +353,27 @@ def generate_prompt(
     return output_file
 
 
+def validate_runner(run_def: Dict[str, Any], context: Dict[str, str]) -> None:
+    """Validate runner for team execution."""
+    team_name = context.get('UCAS_TEAM')
+    is_single = run_def.get('single', False)
+    runner_name = run_def.get('name', 'unknown')
+    
+    if team_name and is_single:
+        raise LaunchError(
+            f"Runner '{runner_name}' is marked as 'single: true' and cannot be used for team execution. "
+            f"Please use a multi-session runner like 'run-tmux'."
+        )
+
+
 def run_command(run_def: Dict[str, Any], cmd: str, member_name: str, context: Dict[str, str], run_dir: Path, debug: bool = False) -> None:
     """
     Execute final command using run-mod definition.
     Supports: script, executable, template.
     """
+    # Validate runner (redundant check for safety)
+    validate_runner(run_def, context)
+
     # Create environment
     env = os.environ.copy()
     env.update(context)

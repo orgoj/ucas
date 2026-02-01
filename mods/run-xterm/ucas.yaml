@@ -1,0 +1,9 @@
+run!:
+  name: run-xterm
+  single: false
+  template: |
+    xterm -T "{window_name}" -e "{cmd}" &
+
+mods+:
+  - name: run-xterm
+    description: Execute commands in a new xterm window

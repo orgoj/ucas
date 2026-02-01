@@ -2,7 +2,19 @@
 
 All notable changes to this project will be documented in this file.
  
-## [0.6.0] - 2026-02-01
+## [0.7.0] - 2026-02-01
+
+### Added
+- **Explicit Run-Mod Overrides**: Updated all `run-*` mods to use the `run!:` suffix for mandatory overrides.
+- **Runner Validation**: Introduced a `single: true/false` flag for runners and implemented validation in `run-team` to prevent terminal-blocking runners (like `run-bash`) from being used in team orchestration.
+- **New `run-xterm` Mod**: Added a non-blocking xterm-based runner.
+- **Enhanced `run-team` CLI**: Supported CLI mods (`+mod`) for the `run-team` command.
+- **Roadmap for `run-docker`**: Added `TODO-RUN-DOCKER.md` documenting requirements for future containerized execution.
+
+### Fixed
+- **Robust YAML Parser**: Fixed the experimental YAML parser to correctly handle multi-line dictionaries within block lists.
+- **Suffix-Aware Resolver**: Made `resolver.py` recognize ACLIs and run-mods correctly even when defined with YAML merge suffixes (e.g., `run!:`).
+
 
 ### Added
 - **Minimalist (Dumb) Merge Philosophy**: Removed all hardcoded merge defaults. User must now explicitly specify `+`, `-`, etc., for all keys (including `skills`, `mods`, and `hooks`).
@@ -13,6 +25,7 @@ All notable changes to this project will be documented in this file.
 - Updated all core `ucas.yaml` files to use explicit `mods+:`, `skills+:`, and `hooks+:` suffixes.
 - Updated `merger.py` to be completely agnostic of key names.
 - Updated `README.md` to reflect the new philosophy and mandatory suffixes.
+
 ## [0.5.0] - 2026-02-01
 
 ### Added

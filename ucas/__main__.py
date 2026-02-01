@@ -10,7 +10,7 @@ from .cli import parse_args
 from .launcher import (
     select_acli, build_command, run_command, LaunchError, 
     prepare_context, HookRunner, get_context_export_str,
-    select_run_mod, expand_run_template
+    select_run_mod, expand_run_template, validate_runner
 )
 from .resolver import (
     find_entity, is_acli, load_config, get_layer_config_paths, 
@@ -182,8 +182,8 @@ def _prepare_and_run_member(
     run_config_full = load_config(run_path)
     run_def = get_run_config(run_config_full)
 
-    # Expand run template
-    # (Removed expansion from here, it's now internal to launcher.run_command)
+    # Validate runner (even for dry-run)
+    validate_runner(run_def, context)
 
     # Dry-run or execute
     if dry_run:
@@ -366,7 +366,7 @@ def run_team(args):
     if args.debug:
         print(f"[TEAM] Found team definition in: {entity_path}", file=sys.stderr)
 
-    run_config_team(name, team_def, [], args)
+    run_config_team(name, team_def, args.mods or [], args)
 
 
 if __name__ == '__main__':

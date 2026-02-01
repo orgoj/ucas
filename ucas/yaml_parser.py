@@ -174,26 +174,56 @@ class YAMLParser:
                 # Back to parent level
                 self.line_idx -= 1
                 break
-            elif indent > base_indent:
-                raise YAMLParseError(f"Unexpected indentation", self.line_idx + 1)
-
+            
             stripped = line.lstrip()
-            if not stripped.startswith('-'):
-                raise YAMLParseError(f"Expected list item (starting with -), got: {stripped}", self.line_idx + 1)
+            if stripped.startswith('-'):
+                if indent > base_indent:
+                     raise YAMLParseError(f"Unexpected indentation", self.line_idx + 1)
+                
+                value_str = stripped[1:].strip()
 
-            value_str = stripped[1:].strip()
+                if not value_str:
+                    # Value on next line
+                    value = self._parse_nested(base_indent)
+                elif ':' in value_str:
+                    # List item is a dict on one line, but might continue on next lines
+                    # We need to peek and see if next lines are more indented
+                    
+                    # Strip the '-' from the first line so _parse_dict_item gets a clean dict line
+                    list_marker_idx = line.find('-')
+                    clean_first_line = line[:list_marker_idx] + ' ' + line[list_marker_idx+1:]
+                    
+                    first_key, first_val = self._parse_dict_item(clean_first_line, base_indent)
+                    # Start a block dict with this first item
+                    item_dict = {first_key: first_val}
+                    
+                    # Peek next lines
+                    while self.line_idx + 1 < len(self.lines):
+                        peek_line = self.lines[self.line_idx + 1].rstrip()
+                        if not peek_line or peek_line.lstrip().startswith('#'):
+                            self.line_idx += 1
+                            continue
+                        
+                        peek_indent = self._get_indent(peek_line)
+                        if peek_indent > base_indent:
+                            self.line_idx += 1
+                            k, v = self._parse_dict_item(peek_line, peek_indent)
+                            item_dict[k] = v
+                        else:
+                            break
+                    value = item_dict
+                else:
+                    value = self._parse_scalar(value_str)
 
-            if not value_str:
-                # Value on next line
-                value = self._parse_nested(base_indent)
-            elif value_str.startswith('['):
-                value = self._parse_flow_list(value_str)
-            elif value_str.startswith('{'):
-                value = self._parse_flow_dict(value_str)
+                result.append(value)
+            elif indent > base_indent:
+                # This should have been handled by the dictionary lookahead above
+                # If we reach here, it's an error in expected structure
+                raise YAMLParseError(f"Unexpected indentation or missing list marker", self.line_idx + 1)
             else:
-                value = self._parse_scalar(value_str)
+                # Indent == base_indent but no '-' marker
+                raise YAMLParseError(f"Expected list item (starting with -)", self.line_idx + 1)
 
-            result.append(value)
             self.line_idx += 1
 
         return result

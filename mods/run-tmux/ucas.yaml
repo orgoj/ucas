@@ -1,5 +1,6 @@
-run:
+run!:
   name: run-tmux
+  single: false
   script: ./tmux_runner.py
 
 mods+:
