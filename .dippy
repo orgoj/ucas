@@ -24,3 +24,6 @@ allow tmux send-keys -t ucas-team-pi-mail* *
 
 # integrate other
 allow-read /home/michael/work/ai/Dicklesworthstone/mcp_agent_mail/**
+
+
+allow ./run_tests.sh
