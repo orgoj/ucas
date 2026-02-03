@@ -1,6 +1,6 @@
 ---
-name: mcp-mail
-description: "Communicate with other agents. Use this for coordinating tasks and status reporting."
+name: communicating-via-mcp-mail
+description: "This skill should be used when the user asks to communicate with other agents, send messages, check the agent inbox, or coordinate tasks between agents. It provides a command-line interface for the MCP Agent Mail system."
 ---
 
 # MCP Agent Mail Skill
