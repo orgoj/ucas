@@ -89,7 +89,7 @@ class TestModPaths(unittest.TestCase):
             # Set project config to empty
             mock_layers.return_value = ((None, None), (None, None), (None, None))
             
-            agent_path, mod_paths = resolve_entities('agent1', ['mod1'], debug=False)
+            agent_path, mod_paths, _, _ = resolve_entities('agent1', ['mod1'], debug=False)
             
             self.assertEqual(agent_path, self.project_mods / 'agent1')
             self.assertEqual(len(mod_paths), 1)
@@ -109,7 +109,7 @@ class TestModPaths(unittest.TestCase):
         with unittest.mock.patch('ucas.__main__.get_layer_config_paths') as mock_layers:
             mock_layers.return_value = ((None, None), (None, None), (None, None))
             
-            agent_path, mod_paths = resolve_entities('agent1', ['mod1', 'mod2'], debug=False)
+            agent_path, mod_paths, _, _ = resolve_entities('agent1', ['mod1', 'mod2'], debug=False)
             
             self.assertEqual(mod_paths[0], external1 / 'mod1')
             self.assertEqual(mod_paths[1], external2 / 'mod2')
@@ -126,7 +126,7 @@ class TestModPaths(unittest.TestCase):
              mock_layers.return_value = ((None, None), (None, None), (None, None))
              
              # agent is mod1 itself for this test
-             agent_p, mod_ps = resolve_entities('mod1', ['mod2'], debug=False)
+             agent_p, mod_ps, _, _ = resolve_entities('mod1', ['mod2'], debug=False)
              
              self.assertEqual(mod_ps[0], libs_dir / 'mod2')
 

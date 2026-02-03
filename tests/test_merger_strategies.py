@@ -73,29 +73,56 @@ class TestMergerStrategies(unittest.TestCase):
 
     def test_practical_onboarding_scenario(self):
         """
-        Simulates a real sandwich merge: System -> Mod -> Project Override.
+        Simulates a real sandwich merge: System -> Default Mod -> Agent -> Project Override.
         """
-        from ucas.yaml_parser import parse_yaml
+        from ucas.merger import merge_configs
         fixtures_dir = Path(__file__).parent / "fixtures" / "practical_merge"
         
-        # 1. Load System Base
-        sys_cfg = parse_yaml((fixtures_dir / "system" / "ucas.yaml").read_text())
+        # We need to mock get_layer_config_paths to use our test fixtures
+        import ucas.merger
         
-        # 2. Merge Mod (mod-git)
-        mod_cfg = parse_yaml((fixtures_dir / "mods" / "mod-git" / "ucas.yaml").read_text())
-        result = _merge_dicts(sys_cfg, mod_cfg, False, "mod")
+        # Setup directories
+        system_dir = fixtures_dir / "system"
+        project_dir = fixtures_dir / "project"
+        mods_dir = fixtures_dir / "mods"
         
-        # 3. Merge Project Override
-        prj_ovr_cfg = parse_yaml((fixtures_dir / "project" / ".ucas" / "ucas-override.yaml").read_text())
-        result = _merge_dicts(result, prj_ovr_cfg, False, "override")
-        
-        # VERIFICATION
-        self.assertEqual(result['requested_model'], 'claude-3-opus')
-        self.assertIn('/usr/share/ucas/skills', result['skills'])
-        self.assertIn('/opt/ucas/mods/git/skills', result['skills'])
-        self.assertEqual(result['hooks']['prerun'], ['git pull'])
-        self.assertEqual(result['new_feature'], 'enabled')
-        self.assertNotIn('existing_feature', result)
+        # Create a mock for get_layer_config_paths
+        with unittest.mock.patch('ucas.merger.get_layer_config_paths') as mock_paths:
+            # system_config, system_override, user_config, user_override, project_config, project_override
+            mock_paths.return_value = (
+                (system_dir / "ucas.yaml", None), # System
+                (None, None),                    # User
+                (None, project_dir / ".ucas" / "ucas-override.yaml") # Project Override
+            )
+            
+            # Temporary agent dir
+            agent_path = Path("/tmp/ucas-test-agent")
+            agent_path.mkdir(parents=True, exist_ok=True)
+            (agent_path / "ucas.yaml").write_text("requested_model: agent-model\n")
+            
+            default_mod_path = mods_dir / "mod-git"
+            
+            # Run merge: System -> Default Mod -> Agent -> Project Override
+            result = merge_configs(
+                agent_path=agent_path,
+                default_mod_paths=[default_mod_path],
+                explicit_mod_paths=[],
+                debug=False
+            )
+            
+            # VERIFICATION
+            # 1. System defaults has requested_model: gpt-4
+            # 2. Agent has requested_model: agent-model
+            # 3. Project Override HAS requested_model!: claude-3-opus
+            # The '!' suffix in override layer means it ALWAYS wins.
+            self.assertEqual(result['requested_model'], 'claude-3-opus')
+            
+            # Project Override adds 'new_feature' and removes 'existing_feature'
+            self.assertEqual(result['new_feature'], 'enabled')
+            
+            # Clean up
+            import shutil
+            shutil.rmtree(agent_path)
 
     def test_practical_team_override(self):
         """

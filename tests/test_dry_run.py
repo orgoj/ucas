@@ -59,7 +59,7 @@ class TestUCASDryRun(unittest.TestCase):
         res = self.run_ucas(["run-team", "test-team"])
         self.assertEqual(res.returncode, 0)
         # Check member execution
-        self.assertIn("[member1] Run-mod:", res.stdout)
+        self.assertIn("[member1] [DRY-RUN]", res.stdout)
         # Member should have team mod (mod-a) and its own mod (basic-agent)
         # The base agent name is basic-agent (resolved from mods[0])
         self.assertIn("export UCAS_TEAM=test-team", res.stdout)

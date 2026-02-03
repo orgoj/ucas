@@ -14,6 +14,9 @@ from typing import List, Dict, Any, Optional
 from datetime import datetime
 
 
+from . import settings
+
+
 class LaunchError(Exception):
     """Error during command launch."""
     pass
@@ -87,9 +90,8 @@ def get_context_export_str(context: Dict[str, str]) -> str:
 
 class HookRunner:
     """Runs lifecycle hooks with injected context."""
-    def __init__(self, context: Dict[str, str], debug: bool = False):
+    def __init__(self, context: Dict[str, str]):
         self.context = context
-        self.debug = debug
         self.env = os.environ.copy()
         self.env.update(context)
 
@@ -103,7 +105,7 @@ class HookRunner:
             cmds = [cmds]
 
         for cmd in cmds:
-            if self.debug:
+            if settings.DEBUG:
                 print(f"[HOOK] Running {stage}: {cmd}", file=sys.stderr)
             try:
                 subprocess.run(cmd, shell=True, env=self.env, check=True)
@@ -111,7 +113,7 @@ class HookRunner:
                 raise LaunchError(f"Hook '{stage}' failed: {cmd} (exit code {e.returncode})")
 
 
-def translate_model(requested_model: Optional[str], acli_def: Dict[str, Any], debug: bool = False) -> Optional[str]:
+def translate_model(requested_model: Optional[str], acli_def: Dict[str, Any]) -> Optional[str]:
     """Translate model name using ACLI mapping."""
     if not requested_model:
         return None
@@ -124,13 +126,13 @@ def translate_model(requested_model: Optional[str], acli_def: Dict[str, Any], de
 
     if requested_model in model_mapping:
         translated = model_mapping[requested_model]
-        if debug:
+        if settings.DEBUG:
             print(f"[MODEL] Translated {requested_model} → {translated}", file=sys.stderr)
         return translated
 
     if 'default' in model_mapping:
         translated = model_mapping['default']
-        if debug:
+        if settings.DEBUG:
             print(f"[MODEL] Using default mapping for {requested_model} → {translated}", file=sys.stderr)
         return translated
 
@@ -146,17 +148,17 @@ def build_command(
     merged_config: Dict[str, Any],
     skills_dirs: List[Path],
     context: Dict[str, str],
-    prompt: Optional[str] = None,
-    debug: bool = False
+    prompt: Optional[str] = None
 ) -> str:
     """Build final command string from ACLI block."""
-    acli_def = merged_config.get('acli', {})
+    from .resolver import get_acli_config
+    acli_def = get_acli_config(merged_config)
     executable = acli_def.get('executable')
     if not executable:
         raise LaunchError("No ACLI 'executable' defined in final configuration")
 
     cmd_parts = [executable]
-    prompt_text = get_merged_prompt(agent_path, mod_paths, merged_config, context, debug)
+    prompt_text = get_merged_prompt(agent_path, mod_paths, merged_config, context)
 
     # Add prompt argument
     if 'prompt_arg' in acli_def and prompt_text:
@@ -181,7 +183,7 @@ def build_command(
     # Add model argument
     requested_model = merged_config.get('requested_model')
     if requested_model:
-        translated_model = translate_model(requested_model, acli_def, debug)
+        translated_model = translate_model(requested_model, acli_def)
         if translated_model and 'model_flag' in acli_def:
             cmd_parts.append(acli_def['model_flag'])
             cmd_parts.append(translated_model)
@@ -220,8 +222,7 @@ def get_merged_prompt(
     agent_path: Path,
     mod_paths: List[Path],
     merged_config: Dict[str, Any],
-    context: Dict[str, str],
-    debug: bool = False
+    context: Dict[str, str]
 ) -> str:
     """Concatenate PROMPT.md files."""
     prompt_parts = []
@@ -258,7 +259,7 @@ def validate_runner(run_def: Dict[str, Any], context: Dict[str, str]) -> None:
         raise LaunchError(f"Runner is marked as 'single' and cannot be used for teams.")
 
 
-def stop_runner(run_def: Dict[str, Any], context: Dict[str, str], dry_run: bool = False, debug: bool = False) -> None:
+def stop_runner(run_def: Dict[str, Any], context: Dict[str, str]) -> None:
     """Execute stop command from run block."""
     env = os.environ.copy()
     env.update(context)
@@ -275,7 +276,7 @@ def stop_runner(run_def: Dict[str, Any], context: Dict[str, str], dry_run: bool 
         cmd.extend(get_run_args("", "stop", context))
     elif stop_template:
         cmd_str = expand_run_template(stop_template, "", "stop", context)
-        if dry_run:
+        if settings.DRY_RUN:
             print(f"[DRY-RUN] Would run stop template: {cmd_str}")
             return
         subprocess.run(cmd_str, shell=True, check=True, env=env)
@@ -283,16 +284,16 @@ def stop_runner(run_def: Dict[str, Any], context: Dict[str, str], dry_run: bool 
     else:
         return
 
-    if dry_run:
+    if settings.DRY_RUN:
         print(f"[DRY-RUN] Would run stop: {' '.join(shlex.quote(p) for p in cmd)}")
     else:
         subprocess.run(cmd, check=True, env=env)
 
 
-def run_command(run_def: Dict[str, Any], cmd: str, member_name: str, context: Dict[str, str], debug: bool = False) -> None:
+def run_command(run_def: Dict[str, Any], cmd: str, member_name: str, context: Dict[str, str]) -> None:
     """Execute final command from run block."""
     final_cmd_str = get_runner_preview(run_def, cmd, member_name, context)
-    if debug: print(f"[EXEC] Running: {final_cmd_str}", file=sys.stderr)
+    if settings.DEBUG: print(f"[EXEC] Running: {final_cmd_str}", file=sys.stderr)
     
     env = os.environ.copy()
     env.update(context)
@@ -365,3 +366,26 @@ def expand_run_template(template: str, cmd: str, member_name: str, context: Dict
         if k != '{cmd}': res = res.replace(k, v)
     res = res.replace('{cmd}', cmd)
     return os.path.expandvars(res)
+
+
+def select_run_mod(merged_config: Dict[str, Any]) -> str:
+    """Select the run mod to use based on configuration."""
+    # 1. Direct 'run' block that is a full definition
+    run_def = merged_config.get('run')
+    if isinstance(run_def, dict) and 'name' in run_def:
+        return run_def['name']
+
+    # 2. explicit override
+    if 'override_run' in merged_config:
+        return merged_config['override_run']
+    
+    # 3. default
+    if 'default_run' in merged_config:
+        return merged_config['default_run']
+    
+    # 4. First allowed
+    allowed = merged_config.get('allowed_run', [])
+    if allowed:
+        return allowed[0]
+    
+    return 'run-tmux'  # Hardcoded default fallback

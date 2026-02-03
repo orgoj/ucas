@@ -83,12 +83,8 @@ def find_entity(name: str, search_paths: Optional[List[Path]] = None) -> Optiona
 
 def is_acli(entity_path: Path) -> bool:
     """Check if entity is an ACLI (has 'executable' key in config)."""
-    config_file = entity_path / 'ucas.yaml'
-    if not config_file.exists():
-        return False
-
     try:
-        config = parse_yaml(config_file.read_text())
+        config = load_config(entity_path)
         # Support suffixes like acli! or executable!
         keys = list(config.keys())
         has_exe = any(k.startswith('executable') for k in keys)
@@ -105,23 +101,40 @@ def is_acli(entity_path: Path) -> bool:
 
 def is_run_mod(entity_path: Path) -> bool:
     """Check if entity is a run mod (has 'run' block)."""
-    config_file = entity_path / 'ucas.yaml'
-    if not config_file.exists():
-        return False
-
     try:
-        config = parse_yaml(config_file.read_text())
+        config = load_config(entity_path)
         return any(k.startswith('run') for k in config.keys())
     except Exception:
         return False
 
 
 def get_acli_config(config: Dict[str, Any]) -> Dict[str, Any]:
-    """Extract ACLI configuration, supporting suffixes."""
+    """Extract ACLI configuration, supporting suffixes and flattening arg_mapping."""
+    acli_block = {}
+    found = False
     for k in config:
         if k.startswith('acli') and (len(k) == 4 or k[4] in ('+', '-', '!', '?', '~')):
-            return config[k]
-    return config
+            acli_block = config[k]
+            found = True
+            break
+    
+    if not found:
+        # If no acli block, use the config itself as potential ACLI def
+        acli_block = config
+
+    if not isinstance(acli_block, dict):
+        return {}
+
+    # Flatten arg_mapping for backward compatibility
+    if 'arg_mapping' in acli_block:
+        mapping = acli_block['arg_mapping']
+        if isinstance(mapping, dict):
+            acli_block = acli_block.copy()
+            for k, v in mapping.items():
+                if k not in acli_block:
+                    acli_block[k] = v
+    
+    return acli_block
 
 
 def get_run_config(config: Dict[str, Any]) -> Dict[str, Any]:
@@ -129,22 +142,32 @@ def get_run_config(config: Dict[str, Any]) -> Dict[str, Any]:
     for k in config:
         if k.startswith('run') and (len(k) == 3 or k[3] in ('+', '-', '!', '?', '~')):
             return config[k]
+    
+    # Fallback if it looks like a runner (must have script or template)
+    # We avoid 'executable' fallback here because it's ambiguous with ACLIs
+    if any(k in config for k in ('script', 'template')):
+        return config
+
     return {}
 
 
-def load_config(entity_path: Path) -> dict:
-    """Load ucas.yaml config from entity directory with __DIR__ replacement."""
-    config_file = entity_path / 'ucas.yaml'
+def load_config_file(config_file: Path) -> dict:
+    """Load a config file with __DIR__ replacement."""
     if not config_file.exists():
         return {}
 
     try:
         text = config_file.read_text()
         # KISS: Replace __DIR__ with absolute path before parsing
-        text = text.replace("__DIR__", str(entity_path.resolve()))
+        text = text.replace("__DIR__", str(config_file.parent.resolve()))
         return parse_yaml(text)
     except Exception as e:
         raise ValueError(f"Failed to parse {config_file}: {e}")
+
+
+def load_config(entity_path: Path) -> dict:
+    """Load ucas.yaml config from entity directory with __DIR__ replacement."""
+    return load_config_file(entity_path / 'ucas.yaml')
 
 
 def get_layer_config_paths() -> Tuple[Optional[Path], Optional[Path], Optional[Path]]:

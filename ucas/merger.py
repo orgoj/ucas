@@ -1,71 +1,73 @@
 """
-Sandwich merge logic: System → Agent → Mods → Overrides.
+Sandwich merge logic: System → Defaults Mods → Agent → Explicit Mods → Overrides.
 """
 
 from pathlib import Path
 from typing import List, Dict, Any, Optional
 import sys
 
-from .yaml_parser import parse_yaml
-from .resolver import get_layer_config_paths, load_config
+from . import settings
+from .resolver import get_layer_config_paths, load_config_file
 
 
 def merge_configs(
     agent_path: Path,
-    mod_paths: List[Path],
-    verbose: bool = False,
-    debug: bool = False
+    default_mod_paths: List[Path],
+    explicit_mod_paths: List[Path]
 ) -> Dict[str, Any]:
     """
-    Perform 11-layer sandwich merge.
+    Perform multi-layer sandwich merge with correct priorities.
     """
     result = {}
 
     # Get layer config paths
     (sys_cfg, sys_ovr), (usr_cfg, usr_ovr), (prj_cfg, prj_ovr) = get_layer_config_paths()
 
-    # Layer 1-3: Default configs
-    layers = []
+    # 1. Base configs (System -> User -> Project)
+    base_layers = []
+    if sys_cfg: base_layers.append(('System defaults', sys_cfg))
+    if usr_cfg: base_layers.append(('User defaults', usr_cfg))
+    if prj_cfg: base_layers.append(('Project defaults', prj_cfg))
 
-    if sys_cfg:
-        layers.append(('System defaults', sys_cfg))
-    if usr_cfg:
-        layers.append(('User defaults', usr_cfg))
-    if prj_cfg:
-        layers.append(('Project defaults', prj_cfg))
+    for layer_name, config_path in base_layers:
+        config = load_config_file(config_path)
+        result = _merge_dicts(result, config, settings.DEBUG, layer_name)
 
-    # Layer 4: Agent config
-    agent_config = agent_path / 'ucas.yaml'
-    if agent_config.exists():
-        layers.append((f'Agent: {agent_path.name}', agent_config))
-
-    # Layer 5-N: Mod configs
-    for mod_path in mod_paths:
+    # 2. Default Mods (those from base configs)
+    for mod_path in default_mod_paths:
         mod_config = mod_path / 'ucas.yaml'
         if mod_config.exists():
-            layers.append((f'Mod: {mod_path.name}', mod_config))
+            if settings.VERBOSE or settings.DEBUG:
+                print(f"[MERGE] Loading Default Mod: {mod_path.name}: {mod_config}", file=sys.stderr)
+            config = load_config_file(mod_config)
+            result = _merge_dicts(result, config, settings.DEBUG, f'Default Mod: {mod_path.name}')
 
-    # Apply bottom layers
-    for layer_name, config_path in layers:
-        if verbose or debug:
-            print(f"[MERGE] Loading {layer_name}: {config_path}", file=sys.stderr)
-        config = parse_yaml(config_path.read_text())
-        result = _merge_dicts(result, config, debug, layer_name)
+    # 3. Agent config (can override base defaults and default mods)
+    agent_config = agent_path / 'ucas.yaml'
+    if agent_config.exists():
+        if settings.VERBOSE or settings.DEBUG:
+            print(f"[MERGE] Loading Agent: {agent_path.name}: {agent_config}", file=sys.stderr)
+        config = load_config_file(agent_config)
+        result = _merge_dicts(result, config, settings.DEBUG, f'Agent: {agent_path.name}')
 
-    # Layer N+1 to N+3: Override configs (veto power)
+    # 4. Explicit mods (from CLI or team definition) - highest priority mod
+    for mod_path in explicit_mod_paths:
+        mod_config = mod_path / 'ucas.yaml'
+        if mod_config.exists():
+            if settings.VERBOSE or settings.DEBUG:
+                print(f"[MERGE] Loading Mod: {mod_path.name}: {mod_config}", file=sys.stderr)
+            config = load_config_file(mod_config)
+            result = _merge_dicts(result, config, settings.DEBUG, f'Mod: {mod_path.name}')
+
+    # 5. Overrides (System -> User -> Project) - final veto
     override_layers = []
-    if sys_ovr:
-        override_layers.append(('System override', sys_ovr))
-    if usr_ovr:
-        override_layers.append(('User override', usr_ovr))
-    if prj_ovr:
-        override_layers.append(('Project override', prj_ovr))
+    if sys_ovr: override_layers.append(('System override', sys_ovr))
+    if usr_ovr: override_layers.append(('User override', usr_ovr))
+    if prj_ovr: override_layers.append(('Project override', prj_ovr))
 
     for layer_name, config_path in override_layers:
-        if verbose or debug:
-            print(f"[MERGE] Loading {layer_name}: {config_path}", file=sys.stderr)
-        config = parse_yaml(config_path.read_text())
-        result = _merge_dicts(result, config, debug, layer_name)
+        config = load_config_file(config_path)
+        result = _merge_dicts(result, config, settings.DEBUG, layer_name)
 
     return result
 
