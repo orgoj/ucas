@@ -1,9 +1,5 @@
+name: run-bash
+description: Direct execution in bash
 run!:
-  name: run-bash
-  single: true
   template: |
     bash -c "{cmd}"
-
-mods+:
-  - name: run-bash
-    description: Execute commands in a local bash shell

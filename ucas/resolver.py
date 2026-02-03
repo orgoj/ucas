@@ -133,13 +133,16 @@ def get_run_config(config: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def load_config(entity_path: Path) -> dict:
-    """Load ucas.yaml config from entity directory."""
+    """Load ucas.yaml config from entity directory with __DIR__ replacement."""
     config_file = entity_path / 'ucas.yaml'
     if not config_file.exists():
         return {}
 
     try:
-        return parse_yaml(config_file.read_text())
+        text = config_file.read_text()
+        # KISS: Replace __DIR__ with absolute path before parsing
+        text = text.replace("__DIR__", str(entity_path.resolve()))
+        return parse_yaml(text)
     except Exception as e:
         raise ValueError(f"Failed to parse {config_file}: {e}")
 

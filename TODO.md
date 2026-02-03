@@ -1,5 +1,14 @@
 # UCAS Project Roadmap & TODO
 
+---
+
+agent ma mit svij adresar skill v projektu, tam si ma primarne delat nove skills
+musi to mit napsane v prompu: ty jsi karel tvoje osobni poznaky k projektu DIR jsi trida backend-dev spolesne poznamky SDIR ...
+do SDIR to musi jit externi destilaci a kontrolou
+
+---
+
+
 This document outlines the planned features and tasks for the UCAS project. Its purpose is to guide development and capture the project's long-term vision.
 
 ## Core Mission

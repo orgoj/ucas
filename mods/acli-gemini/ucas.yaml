@@ -1,24 +1,9 @@
-# Gemini ACLI definition
-
-mods+:
-  - name: acli-gemini
-    description: Integration with the Gemini (Google) CLI
-
-acli:
-  name: acli-gemini
+name: acli-gemini
+description: ACLI for Gemini (google)
+acli!:
   executable: gemini
-  
-  arg_mapping:
-    # Note: Gemini CLI has limitations:
-    # - No --system-prompt or --append-system-prompt flag
-    # - Uses --resume for sessions, not suitable for UCAS session management
-    # prompt_file: N/A - gemini only has -p/--prompt for single prompts
-    skills_dir: --include-directories  # Additional directories to include in workspace
-    model_flag: --model
-  
+  prompt_arg: --prompt
+  model_flag: --model
   model_mapping:
-    default: gemini-2.0-flash-thinking-exp
-  
-  ignore_unknown: true
-  
-  # Note: No session management - gemini uses --resume with indices, not compatible with UCAS
+    flash: gemini-2.0-flash
+    default: gemini-2.0-flash

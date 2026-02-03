@@ -1,67 +1,24 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
- 
-## [0.8.0] - 2026-02-01
+
+## [Unreleased] - 2026-02-03
 
 ### Added
-- **`ucas stop-team` Command**: New command to cleanly tear down team executions.
-- **YAML-Driven Stop Logic**: Added support for `stop_template`, `stop_script`, and `stop_executable` in the `run` configuration block.
-- **Team Execution Context**: Injected `UCAS_TEAM_INDEX` and `UCAS_TEAM_SIZE` into the environment.
-- **Session Safety in `run-tmux`**: Implemented session creation vs. window appending logic. The runner now fails if a session collision occurs on the first team member.
+- New subcommand `ucas ls-mods` to list available mods across project, user, and system layers.
+- Support for `-q`/`--quiet` and `-v`/`--verbose` global options.
+- Support for `__DIR__` variable in `ucas.yaml` files, resolving to the mod's absolute directory path.
+- Implementation of `acli!:` and `run!:` blocks for robust, collision-free configuration merging.
+- Improved `--dry-run` output showing the exact command the runner would execute.
+- Global `--debug` flag for detailed merge tracing and internal command visibility.
 
-## [0.7.0] - 2026-02-01
-
-### Added
-- **Explicit Run-Mod Overrides**: Updated all `run-*` mods to use the `run!:` suffix for mandatory overrides.
-- **Runner Validation**: Introduced a `single: true/false` flag for runners and implemented validation in `run-team` to prevent terminal-blocking runners (like `run-bash`) from being used in team orchestration.
-- **New `run-xterm` Mod**: Added a non-blocking xterm-based runner.
-- **Enhanced `run-team` CLI**: Supported CLI mods (`+mod`) for the `run-team` command.
-- **Roadmap for `run-docker`**: Added `TODO-RUN-DOCKER.md` documenting requirements for future containerized execution.
+### Changed
+- Refactored launcher to be "tupý" (dumb) - it now executes whatever is present in the final merged `acli` and `run` blocks.
+- Moved default ACLI (`acli-claude`) and Runner (`run-tmux`) into the system-level `mods+` list.
+- Flattened ACLI configuration structure (removed `arg_mapping` nesting).
+- Updated all built-in mods to the new robust format.
 
 ### Fixed
-- **Robust YAML Parser**: Fixed the experimental YAML parser to correctly handle multi-line dictionaries within block lists.
-- **Suffix-Aware Resolver**: Made `resolver.py` recognize ACLIs and run-mods correctly even when defined with YAML merge suffixes (e.g., `run!:`).
-
-
-### Added
-- **Minimalist (Dumb) Merge Philosophy**: Removed all hardcoded merge defaults. User must now explicitly specify `+`, `-`, etc., for all keys (including `skills`, `mods`, and `hooks`).
-- **Cumulative Mod Metadata**: Added a `mods` list that tracks all applied mods and their metadata (name, description) in the final configuration.
-- **Robust Mod Resolution**: Updated `ucas/__main__.py` to handle `mods` lists containing both simple strings and metadata dictionaries.
-
-### Changed
-- Updated all core `ucas.yaml` files to use explicit `mods+:`, `skills+:`, and `hooks+:` suffixes.
-- Updated `merger.py` to be completely agnostic of key names.
-- Updated `README.md` to reflect the new philosophy and mandatory suffixes.
-
-## [0.5.0] - 2026-02-01
-
-### Added
-- **Multiple Mod Search Paths**: Support for `mod_path: []` in `ucas.yaml` to expand the mod library.
-- **Dynamic Search Path Expansion**: Agents and mods can now dynamically add search paths during resolution.
-- **Strict Mode**: Added `strict: true` option to disable default fallbacks to User/System layers.
-- **Improved Resolver**: Refactored `ucas/resolver.py` to support dynamic search paths and absolute/relative path resolution.
-- **Expanded Test Suite**: Added `tests/test_mod_paths.py` with 6 new tests covering all mod resolution scenarios.
-
-### Changed
-- Refactored `_prepare_and_run_member` in `ucas/__main__.py` to use new dynamic resolution logic.
-- Updated `ucas/merger.py` to treat `mod_path` as an aggregation key (automatic `+` strategy).
-- Cleaned up test output by disabling debug logs by default in `tests/test_mod_paths.py`.
-
-
-## [0.4.0] - 2026-02-01
-
-### Added
-- **Suffix-based Merge Strategies**: New powerful syntax for granular configuration merging.
-    - `key+`: Merge/Append (recursive for dicts, concatenate for lists).
-    - `key-`: Remove (remove items from list or delete keys from dict).
-    - `key!`: Override (force replacement).
-    - `key?`: Default (only set if missing in base).
-    - `key~`: Selective Update (only set if key already exists in base).
-- **Practical Tests**: Comprehensive test suite in `tests/test_merger_strategies.py` including practical multi-layer scenarios.
-- **Improved Documentation**: Detailed "Merge Strategies" section added to README.md.
-- **Convenience**: Added `run_tests.sh` to quickly execute the entire test suite.
-
-### Changed
-- Refactored `ucas/merger.py` to use generic strategy handlers.
-- Updated `skills`, `mods`, and `hooks` to use the `+` strategy by default for backward compatibility.
+- Fixed collisions where multiple mods with the same `name` key would overwrite each other's functional configuration.
+- Fixed an issue where the wrong runner was selected when multiple runners were present in the mod chain.
+- Corrected model translation logic to properly handle 'default' models.

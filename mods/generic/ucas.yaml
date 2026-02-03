@@ -1,3 +1,2 @@
-# Basic chat agent
-
-name: basic-chat
+name: generic
+description: Generic base agent

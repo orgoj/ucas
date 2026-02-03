@@ -1,5 +1,15 @@
+allow-read ~/.ucas/**
+allow-edit ~/.ucas/**
+
+allow-read ../ucas-test/**
+allow-edit ../ucas-test/**
+
 allow export UCAS_HOME=*
-allow python3 -m ucas *
+
+deny python3 -m ucas * "Call application only with `./ucas-bin ...`"
+deny python3 ucas-bin * "Call application only with `./ucas-bin ...`"
+allow ./ucas-bin --dry-run *
+allow /home/michael/work/ai/PROJECTS/ucas/ucas-bin --dry-run *
 
 # komunikace mcp_agent_mail
 allow am-client *

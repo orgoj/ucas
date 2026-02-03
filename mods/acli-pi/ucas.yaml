@@ -1,24 +1,9 @@
-# Pi ACLI definition
-
-mods+:
-  - name: acli-pi
-    description: Integration with the Pi (Google) CLI
-
-acli:
-  name: acli-pi
+name: acli-pi
+description: ACLI for Pi (pi-mono)
+acli!:
   executable: pi
-
-  arg_mapping:
-    prompt_file: --append-system-prompt
-    skills_dir: --skill
-    model_flag: --model
-    provider_flag: --provider
-
-  # Map known common names if needed, but allow everything else
-  model_mapping:
-    default-gemini: gemini-3-flash
-
+  prompt_arg: --prompt
+  skills_dir: --skill
+  model_flag: --model
+  session_arg: --session "{project_root}/.pi/sessions/{uuid}.json"
   ignore_unknown: true
-
-  # Session configuration: complete argument with path template
-  session_arg: --session "$HOME/.pi/sessions/{uuid}.json"

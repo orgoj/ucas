@@ -1,15 +1,6 @@
 # System defaults for UCAS
 
-# Auto-included mods
+# Auto-included mods (Default ACLI and Runner)
 mods+:
   - run-tmux
-
-allowed_acli+:
   - acli-claude
-  - acli-pi
-  - acli-gemini
-
-# Run configuration
-allowed_run+:
-  - run-tmux
-  - run-bash
