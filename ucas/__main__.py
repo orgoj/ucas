@@ -224,15 +224,30 @@ def ls_mods(args):
             if item.is_dir():
                 try:
                     cfg = load_config(item)
-                    mods.append((item.name, cfg.get('description', '')))
-                except: mods.append((item.name, ''))
+                    has_skill = (item / 'skills').is_dir()
+                    has_prompt = (item / 'PROMPT.md').is_file()
+                    has_acli = any(k.startswith('acli') for k in cfg)
+                    has_run = any(k.startswith('run') for k in cfg)
+                    
+                    flags = ""
+                    flags += "S" if has_skill else "."
+                    flags += "A" if has_acli else "."
+                    flags += "R" if has_run else "."
+                    flags += "P" if has_prompt else "."
+                    
+                    mods.append((item.name, cfg.get('description', ''), flags))
+                except: mods.append((item.name, '', "...."))
         if not mods: continue
         if args.quiet:
             print(f"# {label}")
-            for n, _ in mods: print(n)
+            for n, _, f in mods:
+                f_str = f" [{f}]" if f != "...." else ""
+                print(f"{n}{f_str}")
         else:
             print(f"--- {label.upper()} MODS ({path}) ---")
-            for n, d in mods: print(f"{n:20} - {d}" if d else n)
+            for n, d, f in mods:
+                flag_tag = f"[{f}]"
+                print(f"{flag_tag} {n:20} - {d}" if d else f"{flag_tag} {n}")
         print()
 
 
