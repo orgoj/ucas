@@ -6,10 +6,10 @@ allow-edit ../ucas-test/**
 
 allow export UCAS_HOME=*
 
-deny python3 -m ucas * "Call application only with `./ucas-bin ...`"
-deny python3 ucas-bin * "Call application only with `./ucas-bin ...`"
-allow ./ucas-bin --dry-run *
-allow /home/michael/work/ai/PROJECTS/ucas/ucas-bin --dry-run *
+deny python3 -m ucas * "Ucas is sytem-wide installed use only `ucas ...`"
+deny python3 ucas-bin * "Ucas is sytem-wide installed use only `ucas ...`"
+deny ./ucas-bin * "Ucas is sytem-wide installed use only `ucas ...`"
+allow ucas-bin --dry-run *
 
 # komunikace mcp_agent_mail
 allow am-client *
