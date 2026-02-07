@@ -150,6 +150,33 @@ ucas run basic-chat +acli-claude
 ucas run-team backend-squad
 ```
 
+### Mail System
+
+Interact with the built-in file-based agent mail system.
+
+```bash
+# Send mail (reads from stdin)
+echo "Message body" | ucas mail send recipient_name "Subject Line"
+
+# List messages (inbox)
+ucas mail list
+
+# List read messages
+ucas mail list --all
+
+# List sent messages
+ucas mail list --sent
+
+# Read a message
+ucas mail read <ID>
+
+# Check for new mail (exit code 0 if new mail exists)
+ucas mail check
+
+# Wait for new mail (blocking)
+ucas mail check --idle
+```
+
 **Default Mods**: You can define default mods in `ucas.yaml` that are automatically included in every run:
 ```yaml
 mods:

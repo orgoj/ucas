@@ -2,7 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
-## [Unreleased] - 2026-02-03
+## [0.9.0] - 2026-02-08
+
+### Added
+- **Agent Mail System**: A new file-based communication system for agents and users.
+  - `ucas mail send`: Send messages to agents (local or in other projects) or the user.
+  - `ucas mail list`: List inbox, read, and sent messages.
+  - `ucas mail read`: Read message content and move to read folder.
+  - `ucas mail check`: Check for new messages (with `--idle` support).
+  - New `ucas-mail` mod with `mail` skill for agents to interact with the system.
+  - Integration with `UCAS_AGENT_NOTES` for mail storage.
+
+## [0.8.0] - 2026-02-03
 
 ### Added
 - New subcommand `ucas ls-mods` to list available mods across project, user, and system layers.

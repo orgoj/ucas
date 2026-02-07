@@ -49,6 +49,29 @@ def parse_args(argv=None):
     # ls-mods
     subparsers.add_parser('ls-mods', help='List available mods')
 
+    # mail
+    mail_parser = subparsers.add_parser('mail', help='Mail system')
+    mail_subparsers = mail_parser.add_subparsers(dest='mail_command', help='Mail commands')
+    
+    # mail send
+    send_parser = mail_subparsers.add_parser('send', help='Send mail')
+    send_parser.add_argument('recipient', help='Recipient name (or ALL)')
+    send_parser.add_argument('subject', help='Subject line')
+    send_parser.add_argument('--reply', help='ID of message being replied to')
+    
+    # mail list
+    list_parser = mail_subparsers.add_parser('list', help='List mails')
+    list_parser.add_argument('--all', action='store_true', help='Include read messages')
+    list_parser.add_argument('--sent', action='store_true', help='Show sent messages')
+    
+    # mail read
+    read_parser = mail_subparsers.add_parser('read', help='Read mail')
+    read_parser.add_argument('id', help='Mail ID')
+    
+    # mail check
+    check_parser = mail_subparsers.add_parser('check', help='Check for new mail')
+    check_parser.add_argument('--idle', action='store_true', help='Wait for new mail')
+
     # Ignorujeme známé globální flagy při parsování subpříkazů
     known_argv = [a for a in argv if a not in ('--dry-run', '--debug', '-v', '--verbose', '-q', '--quiet')]
     args = parser.parse_args(known_argv)

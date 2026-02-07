@@ -38,6 +38,23 @@ ucas run generic +run-bash         # Run directly in current terminal
 ucas run-team my-dev-team
 ```
 
+### Agent Mail System
+Communicate with agents using the built-in file-based mail system.
+
+```bash
+# Send a message
+echo "Hello Agent" | ucas mail send agent-name "Subject"
+
+# Check inbox
+ucas mail check
+
+# List messages
+ucas mail list
+
+# Read a message
+ucas mail read <ID>
+```
+
 ## Global Options
 
 - `-q`, `--quiet`: Minimize output (useful for scripting).

@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import List, Dict, Any, Tuple
 
 from . import settings
+from . import mail
 from .cli import parse_args
 from .launcher import (
     build_command, run_command, LaunchError, 
@@ -190,12 +191,41 @@ def main():
             stop_team(args)
         elif args.command == 'ls-mods':
             ls_mods(args)
+        elif args.command == 'mail':
+            handle_mail(args)
     except LaunchError as e:
         print(f"Error: {e}", file=sys.stderr); sys.exit(1)
     except Exception as e:
         print(f"Unexpected error: {e}", file=sys.stderr)
         if settings.DEBUG: raise
         sys.exit(1)
+
+
+def handle_mail(args):
+    """Handle mail commands."""
+    if not args.mail_command:
+        # If no subcommand, show help (via parser.print_help() if possible or just exit)
+        # But we don't have parser here. Let's assume list inbox by default?
+        # No, subcommand is required by argparse generally unless we make it optional.
+        # But for now, let's assume it was parsed.
+        print("Use: ucas mail {send,list,read,check} ...")
+        sys.exit(1)
+
+    if args.mail_command == 'send':
+        # Read body from stdin
+        if sys.stdin.isatty():
+            print("Enter message body (Ctrl+D to finish):")
+        body = sys.stdin.read()
+        mail.send_mail(args.recipient, args.subject, body, reply_id=args.reply)
+        
+    elif args.mail_command == 'list':
+        mail.list_mail(show_all=args.all, show_sent=args.sent)
+        
+    elif args.mail_command == 'read':
+        mail.read_mail(args.id)
+        
+    elif args.mail_command == 'check':
+        mail.check_mail(idle=args.idle)
 
 
 def run_agent(args):
