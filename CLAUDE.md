@@ -172,14 +172,11 @@ Interact with the built-in file-based agent mail system.
 # Send mail (reads from stdin)
 echo "Message body" | ucas mail send recipient_name "Subject Line"
 
-# List messages (inbox)
+# List messages (JSON by default)
 ucas mail list
 
-# List read messages
-ucas mail list --all
-
-# List sent messages
-ucas mail list --sent
+# List with human-readable table
+ucas mail list --table
 
 # Read a message
 ucas mail read <ID>
@@ -190,6 +187,8 @@ ucas mail check
 # Wait for new mail (blocking)
 ucas mail check --idle
 ```
+
+**Note on ACLI Support**: ACLIs that do not support system prompt flags (like Gemini) will ignore `PROMPT_SYSTEM.md` and `PROMT_SYSTEM_ADD.md`. In these cases, provide instructions manually via `AGENTS.md` or agent-specific prompts.
 
 **Default Mods**: You can define default mods in `ucas.yaml` that are automatically included in every run:
 ```yaml

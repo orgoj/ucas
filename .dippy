@@ -1,8 +1,8 @@
 allow-read ~/.ucas/**
 allow-edit ~/.ucas/**
 
-allow-read ../ucas-test/**
-allow-edit ../ucas-test/**
+allow-read ../ucas-tests/**
+allow-edit ../ucas-tests/**
 
 allow export UCAS_HOME=*
 

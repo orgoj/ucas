@@ -159,6 +159,24 @@ def build_command(
         raise LaunchError("No ACLI 'executable' defined in final configuration")
 
     cmd_parts = [executable]
+    
+    # 1. System Prompt Override
+    sys_override = get_merged_system_override(mod_paths, context)
+    if not sys_override:
+        # Default identity if no override
+        sys_override = get_identity_prompt(context)
+        
+    if 'system_prompt_arg' in acli_def:
+        cmd_parts.append(acli_def['system_prompt_arg'])
+        cmd_parts.append(sys_override)
+
+    # 2. System Prompt Add (Append)
+    sys_add = get_merged_system_add(mod_paths, context)
+    if sys_add and 'system_prompt_add_arg' in acli_def:
+        cmd_parts.append(acli_def['system_prompt_add_arg'])
+        cmd_parts.append(sys_add)
+
+    # 3. Legacy PROMPT.md (from agent/mods)
     prompt_text = get_merged_prompt(agent_path, mod_paths, merged_config, context)
 
     # Add prompt argument
@@ -219,6 +237,20 @@ def expand_variables(text: str, context: Dict[str, str]) -> str:
     return result
 
 
+def get_identity_prompt(context: Dict[str, str]) -> str:
+    """Get the default identity block."""
+    agent_name = context.get('UCAS_AGENT', 'unknown')
+    team_name = context.get('UCAS_TEAM', '')
+    
+    identity = f"SYSTEM OVERRIDE: Your name is **{agent_name}**.\n"
+    identity += f"You are a specialized AI agent in the UCAS framework.\n"
+    identity += f"Your mission identity: **{agent_name}**\n"
+    if team_name:
+        identity += f"Assigned Team: **{team_name}**\n"
+    identity += f"\nIMPORTANT: You must NOT identify as 'pi', 'Claude', or 'Gemini'. Always use **{agent_name}**.\n"
+    return identity
+
+
 def get_merged_prompt(
     agent_path: Path,
     mod_paths: List[Path],
@@ -227,17 +259,7 @@ def get_merged_prompt(
 ) -> str:
     """Concatenate PROMPT.md files."""
     prompt_parts = []
-    agent_name = context.get('UCAS_AGENT', 'unknown')
-    team_name = context.get('UCAS_TEAM', '')
     
-    if team_name:
-        identity = f"SYSTEM OVERRIDE: Your name is **{agent_name}**.\n"
-        identity += f"You are a specialized AI agent in the UCAS framework.\n"
-        identity += f"Your mission identity: **{agent_name}**\n"
-        identity += f"Assigned Team: **{team_name}**\n"
-        identity += f"\nIMPORTANT: You must NOT identify as 'pi', 'Claude', or 'Gemini'. Always use **{agent_name}**.\n"
-        prompt_parts.append(identity)
-
     agent_prompt = agent_path / 'PROMPT.md'
     if agent_prompt.exists():
         prompt_parts.append(agent_prompt.read_text())
@@ -251,6 +273,36 @@ def get_merged_prompt(
         return ""
 
     merged_content = "\n\n---\n\n".join(p.strip() for p in prompt_parts if p.strip())
+    return expand_variables(merged_content, context)
+
+
+def get_merged_system_override(mod_paths: List[Path], context: Dict[str, str]) -> str:
+    """Concatenate PROMPT_SYSTEM.md files from mods."""
+    parts = []
+    for mod_path in mod_paths:
+        f = mod_path / 'PROMPT_SYSTEM.md'
+        if f.exists():
+            parts.append(f.read_text())
+
+    if not parts:
+        return ""
+
+    merged_content = "\n\n---\n\n".join(p.strip() for p in parts if p.strip())
+    return expand_variables(merged_content, context)
+
+
+def get_merged_system_add(mod_paths: List[Path], context: Dict[str, str]) -> str:
+    """Concatenate PROMT_SYSTEM_ADD.md files from mods."""
+    parts = []
+    for mod_path in mod_paths:
+        f = mod_path / 'PROMT_SYSTEM_ADD.md'
+        if f.exists():
+            parts.append(f.read_text())
+
+    if not parts:
+        return ""
+
+    merged_content = "\n\n---\n\n".join(p.strip() for p in parts if p.strip())
     return expand_variables(merged_content, context)
 
 

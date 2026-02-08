@@ -43,7 +43,7 @@ def _init_mails(merged_config: Dict[str, Any], team_members: List[str]):
         agent_mail_dir = project_root / ".ucas" / "mails" / member
         mail._ensure_mail_dirs(agent_mail_dir)
         
-        # Perfection: Notify if new mail is waiting
+        # perfection: Notify if new mail is waiting
         inbox = agent_mail_dir / "inbox"
         new_cnt = len(list(inbox.glob("*.eml")))
         if new_cnt > 0:

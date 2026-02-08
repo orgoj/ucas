@@ -21,7 +21,7 @@ from . import settings
 
 # Constants
 USER_AGENT_NAME = "USER"
-USER_MAIL_DIR = Path.home() / ".ucas" / "mails" / "USER"
+MAIL_SUBDIR = "mails" # Plural as requested
 PROJECT_LIST_FILE = Path.home() / ".ucas" / "mail-projects.txt"
 
 def _get_project_root() -> Path:
@@ -34,10 +34,14 @@ def _get_project_root() -> Path:
         root = root.parent
     return cwd
 
+def _get_user_mail_dir() -> Path:
+    """Get the global mail directory for the user."""
+    return Path.home() / ".ucas" / MAIL_SUBDIR / USER_AGENT_NAME
+
 def _get_agent_mail_dir(agent_name: str, project_root: Optional[Path] = None) -> Path:
     """Get the mail directory for a specific agent. Supports agent@/path/to/project."""
     if agent_name == USER_AGENT_NAME:
-        return USER_MAIL_DIR
+        return _get_user_mail_dir()
     
     if not project_root:
         project_root = _get_project_root()
@@ -48,14 +52,12 @@ def _get_agent_mail_dir(agent_name: str, project_root: Optional[Path] = None) ->
             name, path_str = parts
             target_root = Path(path_str).expanduser()
             if not target_root.is_absolute():
-                 # Finding 4: Robust fallback if project_root is None
                  base = project_root if project_root else _get_project_root()
                  target_root = (base / target_root).resolve()
             
-            return target_root / ".ucas" / "mails" / name
+            return target_root / ".ucas" / MAIL_SUBDIR / name
     
-    # Standard location: .ucas/mails/<agent>
-    return project_root / ".ucas" / "mails" / agent_name
+    return project_root / ".ucas" / MAIL_SUBDIR / agent_name
 
 def _ensure_mail_dirs(base_dir: Path):
     """Ensure inbox, read, sent, archive directories exist."""
@@ -77,11 +79,8 @@ def _get_sender_info(override_agent: Optional[str] = None) -> Tuple[str, Path]:
     notes_path = os.environ.get("UCAS_AGENT_NOTES")
     
     if agent_name:
-        # Finding 2: Compatibility with UCAS_AGENT_NOTES
-        # If notes_path exists, we can try to derive project root from it
         if notes_path:
             p_notes = Path(notes_path).resolve()
-            # notes are usually in <project>/.ucas/notes/<agent>
             if ".ucas" in str(p_notes):
                 try:
                     p_root = Path(str(p_notes).split(".ucas")[0])
@@ -91,7 +90,7 @@ def _get_sender_info(override_agent: Optional[str] = None) -> Tuple[str, Path]:
         
         return agent_name, _get_agent_mail_dir(agent_name)
     else:
-        return USER_AGENT_NAME, USER_MAIL_DIR
+        return USER_AGENT_NAME, _get_user_mail_dir()
 
 def _update_project_list(project_root: Path):
     """Append project path to user's mail-projects.txt if not present."""
@@ -123,7 +122,6 @@ def _parse_eml(path: Path, folder: str) -> Dict:
     else:
         body = msg.get_content()
 
-    # Determine date
     date_str = msg.get('Date')
     timestamp = 0
     if date_str:
@@ -136,7 +134,7 @@ def _parse_eml(path: Path, folder: str) -> Dict:
         timestamp = path.stat().st_mtime
 
     return {
-        "id": path.stem, # filename without extension is ID
+        "id": path.stem, 
         "timestamp": timestamp,
         "date_str": date_str or datetime.fromtimestamp(timestamp).strftime("%Y-%m-%d %H:%M:%S"),
         "from": msg.get('From'),
@@ -144,6 +142,7 @@ def _parse_eml(path: Path, folder: str) -> Dict:
         "subject": msg.get('Subject'),
         "body": body,
         "from_project": msg.get('X-Ucas-Project'),
+        "in_reply_to": msg.get('X-Ucas-In-Reply-To') or msg.get('In-Reply-To'),
         "_folder": folder,
         "_path": str(path)
     }
@@ -152,16 +151,13 @@ def _deliver_mail(target_name: str, target_dir: Path, msg: EmailMessage) -> bool
     """Deliver a message to an agent's inbox."""
     try:
         _ensure_mail_dirs(target_dir)
-        # Use Message-ID from msg if possible, or generate filename
         mail_filename = f"{msg['Message-ID'].strip('<>').split('@')[0]}.eml"
         target_file = target_dir / "inbox" / mail_filename
         
         with open(target_file, 'wb') as f:
             f.write(msg.as_bytes())
         
-        # Team Autostart Logic
         _handle_autostart(target_dir)
-
         return True
     except Exception as e:
         print(f"Error sending to {target_name}: {e}", file=sys.stderr)
@@ -199,21 +195,13 @@ def get_messages(agent_name: Optional[str] = None, folders: List[str] = None) ->
     
     if agent_name:
         target_agent = agent_name
-        # Allow checking others debug if not running as agent, or if simple permission
     else:
-        if current_agent:
-            target_agent = current_agent
-        else:
-            target_agent = USER_AGENT_NAME
+        target_agent = current_agent if current_agent else USER_AGENT_NAME
 
-    # Strict Security Check
     if current_agent and target_agent == USER_AGENT_NAME:
         return []
 
-    if target_agent == USER_AGENT_NAME:
-        mail_dir = USER_MAIL_DIR
-    else:
-        mail_dir = _get_agent_mail_dir(target_agent)
+    mail_dir = _get_agent_mail_dir(target_agent)
 
     if not mail_dir.exists():
         return []
@@ -246,13 +234,9 @@ def get_message_content(mail_id: str, agent_name: Optional[str] = None) -> Tuple
     if current_agent and target_agent == USER_AGENT_NAME:
         return None, None, None
 
-    if target_agent == USER_AGENT_NAME:
-        mail_dir = USER_MAIL_DIR
-    else:
-        mail_dir = _get_agent_mail_dir(target_agent)
+    mail_dir = _get_agent_mail_dir(target_agent)
     
     for folder in ["inbox", "read", "sent", "archive"]:
-        # Direct match
         path = mail_dir / folder / f"{mail_id}.eml"
         if path.exists():
             try:
@@ -260,7 +244,6 @@ def get_message_content(mail_id: str, agent_name: Optional[str] = None) -> Tuple
             except:
                 pass
         
-        # Partial match
         files = list((mail_dir / folder).glob(f"{mail_id}*.eml"))
         if files:
             try:
@@ -309,10 +292,8 @@ def send_mail(recipient: str, subject: str, body: str, reply_id: Optional[str] =
     sender_name, sender_mail_dir = _get_sender_info(sender_override)
     project_root = _get_project_root()
     
-    # Use full address in From header for better reply support
     full_sender = f"{sender_name}@{project_root}" if sender_name != USER_AGENT_NAME else sender_name
 
-    # Auto-resolve recipient and subject if replying and not provided
     if (not recipient or not subject) and reply_id:
         orig_data, _, _ = get_message_content(reply_id)
         if orig_data:
@@ -323,14 +304,12 @@ def send_mail(recipient: str, subject: str, body: str, reply_id: Optional[str] =
                 subject = orig_subj if orig_subj.startswith("Re:") else f"Re: {orig_subj}"
     
     if not recipient or not subject:
-        print("Error: Recipient and Subject are required (unless replying to an existing message).", file=sys.stderr)
+        print("Error: Recipient and Subject are required.", file=sys.stderr)
         return
 
     mail_id = _generate_mail_id()
-    
     _update_project_list(project_root)
 
-    # Create EML
     msg = EmailMessage()
     msg['Subject'] = subject
     msg['From'] = full_sender
@@ -341,7 +320,7 @@ def send_mail(recipient: str, subject: str, body: str, reply_id: Optional[str] =
     
     if reply_id:
         msg['In-Reply-To'] = f"<{reply_id}@ucas>"
-        msg['References'] = f"<{reply_id}@ucas>"
+        msg['X-Ucas-In-Reply-To'] = reply_id
     
     msg.set_content(body)
     
@@ -349,14 +328,14 @@ def send_mail(recipient: str, subject: str, body: str, reply_id: Optional[str] =
     
     targets = []
     if recipient.upper() == "ALL":
-        mails_dir = project_root / ".ucas" / "mails"
+        mails_dir = project_root / ".ucas" / MAIL_SUBDIR
         if mails_dir.exists():
             for agent_dir in mails_dir.iterdir():
                 if agent_dir.is_dir() and agent_dir.name != USER_AGENT_NAME:
                     targets.append((agent_dir.name, agent_dir))
     else:
         if recipient == USER_AGENT_NAME:
-            targets.append((USER_AGENT_NAME, USER_MAIL_DIR))
+            targets.append((USER_AGENT_NAME, _get_user_mail_dir()))
         else:
             targets.append((recipient, _get_agent_mail_dir(recipient, project_root)))
     
@@ -376,7 +355,7 @@ def send_mail(recipient: str, subject: str, body: str, reply_id: Optional[str] =
             
     print(f"Mail sent to {sent_count} recipient(s).")
 
-def list_mail(show_all: bool = False, show_sent: bool = False, show_archive: bool = False, json_output: bool = False):
+def list_mail(show_all: bool = False, show_sent: bool = False, show_archive: bool = False, json_output: bool = True):
     """List mails."""
     folders = []
     if show_sent:
@@ -389,8 +368,6 @@ def list_mail(show_all: bool = False, show_sent: bool = False, show_archive: boo
             folders.append("read")
             
     mails = get_messages(folders=folders)
-    
-    current_proj = str(_get_project_root())
     
     if json_output:
         print(json.dumps(mails, indent=2, ensure_ascii=False))
@@ -408,7 +385,7 @@ def list_mail(show_all: bool = False, show_sent: bool = False, show_archive: boo
         sender = m['from']
         print(f"{m.get('id'):<20} {m.get('date_str', ''):<20} {sender:<30} {folder_mark:<8} {m.get('subject', '')}")
 
-def read_mail(mail_id: str, json_output: bool = False):
+def read_mail(mail_id: str, json_output: bool = True):
     """Read a specific mail by ID. Moves from inbox to read."""
     data, path, folder = get_message_content(mail_id)
     
@@ -437,13 +414,7 @@ def read_mail(mail_id: str, json_output: bool = False):
             print("\n(Message moved to read folder)")
 
 def get_address_book() -> List[Dict[str, str]]:
-    """
-    Get list of known contacts.
-    Combines:
-    1. USER (System)
-    2. Local Agents in .ucas/mails (read description from mod if available)
-    3. Entries in `mail-addressbook` from ucas.yaml (Merged Config)
-    """
+    """Get list of known contacts."""
     contacts = [
         {"address": USER_AGENT_NAME, "type": "System", "desc": "Human User"},
         {"address": "ALL", "type": "Broadcast", "desc": "All agents in project"}
@@ -452,25 +423,21 @@ def get_address_book() -> List[Dict[str, str]]:
     current_agent = os.environ.get("UCAS_AGENT")
     root = _get_project_root()
     
-    # Needs to import config loaders. Importing inside function to avoid circular imports if any
     try:
         from .resolver import get_layer_config_paths, load_config_file, get_search_paths, find_entity, load_config
         from .merger import _merge_dicts
         
-        # Load merged config to get mail-addressbook
         (sys_cfg, _), (usr_cfg, _), (prj_cfg, _) = get_layer_config_paths()
         merged_config = {}
         for layer_name, cfg in [('System', sys_cfg), ('User', usr_cfg), ('Project', prj_cfg)]:
             if cfg:
                 merged_config = _merge_dicts(merged_config, load_config_file(cfg), False, f"Base:{layer_name}")
         
-        # Load search paths to find local agent mods for descriptions
         extra_paths = merged_config.get('mod_path', [])
         if isinstance(extra_paths, str): extra_paths = [extra_paths]
         search_paths = get_search_paths(extra_paths, merged_config.get('strict', False))
         
-        # 2. Local Agents - Discovery + Mod Lookup
-        mails_dir = root / ".ucas" / "mails"
+        mails_dir = root / ".ucas" / MAIL_SUBDIR
         if mails_dir.exists():
             for item in mails_dir.iterdir():
                 if item.is_dir() and item.name != USER_AGENT_NAME:
@@ -478,7 +445,6 @@ def get_address_book() -> List[Dict[str, str]]:
                         continue 
                     
                     desc = "Local Agent"
-                    # Try to find mod for description
                     m_path = find_entity(item.name, search_paths)
                     if m_path:
                         try:
@@ -494,12 +460,9 @@ def get_address_book() -> List[Dict[str, str]]:
                         "desc": desc
                     })
         
-        # 3. Configured Address Book
-        # Format: mail-addressbook: { "agent_name": "Description", "agent@path": "Description" }
         configured_book = merged_config.get('mail-addressbook', {})
         if isinstance(configured_book, dict):
             for addr, desc in configured_book.items():
-                # Avoid duplicates
                 if not any(c['address'] == addr for c in contacts):
                     contacts.append({
                         "address": addr,
@@ -507,18 +470,16 @@ def get_address_book() -> List[Dict[str, str]]:
                         "desc": desc
                     })
                 else:
-                    # Update description if it was generic
                     for c in contacts:
                         if c['address'] == addr and c['desc'] == "Local Agent":
                             c['desc'] = desc
 
-    except Exception as e:
-        if settings.DEBUG: print(f"Address book error: {e}", file=sys.stderr)
+    except Exception:
         pass
 
     return contacts
 
-def print_address_book(json_output: bool = False):
+def print_address_book(json_output: bool = True):
     """Print address book."""
     contacts = get_address_book()
     
@@ -531,14 +492,40 @@ def print_address_book(json_output: bool = False):
     for c in contacts:
         print(f"{c['address']:<30} {c['type']:<10} {c['desc']}")
 
-def get_instruction(agent_name: str, team_name: Optional[str] = None) -> str:
+def get_instruction(agent_name: str) -> str:
     """Return instructions for the agent on how to use mail."""
-    template_path = Path(__file__).parent / "mail_instruction.md"
-    if template_path.exists():
-        template = template_path.read_text()
-        return template.format(agent_name=agent_name)
-    
-    return f"Error: Instruction template not found at {template_path}"
+    return f"""# UCAS Mail System Instructions for {agent_name}
+
+You are equipped with a file-based messaging system for team collaboration.
+
+## CORE COMMANDS
+
+1. CHECK FOR MAIL (CRITICAL)
+   Run this when you are waiting for tasks or replies. It blocks until mail arrives.
+   $ ucas mail check --idle
+
+2. LIST MESSAGES
+   $ ucas mail list
+   (Returns JSON list of messages in your inbox)
+
+3. READ MESSAGE
+   $ ucas mail read <ID>
+   (Returns message details as JSON and moves it to 'read' folder)
+
+4. SEND MESSAGE
+   $ ucas mail send <RECIPIENT> "<SUBJECT>" --body "Your message content here"
+   (Use the recipient name from addressbook or 'USER')
+
+5. ADDRESS BOOK
+   $ ucas mail addressbook
+   (Discover team members)
+
+## RULES
+- Always prefer JSON output for parsing.
+- Use --idle when waiting; do not loop manually.
+- Use --body for all outgoing messages.
+- If you receive an empty body, ask the sender for clarification.
+"""
 
 def check_mail(idle: bool = False):
     """Check for new mail in inbox."""
@@ -560,7 +547,6 @@ def check_mail(idle: bool = False):
         """Helper to print new mail details."""
         print("\n*** NEW MAIL RECEIVED ***")
         msgs = get_messages(folders=['inbox'])
-        
         msgs.sort(key=lambda x: x.get('timestamp', 0), reverse=True)
         
         for m in msgs:
@@ -583,4 +569,3 @@ def check_mail(idle: bool = False):
             sys.exit(0)
         else:
             sys.exit(1)
-
