@@ -38,12 +38,12 @@ def parse_args(argv=None):
 
     # run-team
     team_parser = subparsers.add_parser('run-team', help='Run a team')
-    team_parser.add_argument('team', help='Team name')
+    team_parser.add_argument('team', nargs='?', help='Team name (optional if defined in project config)')
     team_parser.add_argument('mods', nargs='*', help='Global team mods')
 
     # stop-team
     stop_parser = subparsers.add_parser('stop-team', help='Stop a team')
-    stop_parser.add_argument('team', help='Team name')
+    stop_parser.add_argument('team', nargs='?', help='Team name (optional if defined in project config)')
     stop_parser.add_argument('mods', nargs='*', help='Mods')
 
     # ls-mods
@@ -57,6 +57,7 @@ def parse_args(argv=None):
     send_parser = mail_subparsers.add_parser('send', help='Send mail')
     send_parser.add_argument('recipient', help='Recipient name (or ALL)')
     send_parser.add_argument('subject', help='Subject line')
+    send_parser.add_argument('--body', help='Message body (optional, otherwise reads from stdin)')
     send_parser.add_argument('--reply', help='ID of message being replied to')
     
     # mail list
@@ -71,6 +72,13 @@ def parse_args(argv=None):
     # mail check
     check_parser = mail_subparsers.add_parser('check', help='Check for new mail')
     check_parser.add_argument('--idle', action='store_true', help='Wait for new mail')
+
+    # mail addressbook
+    mail_subparsers.add_parser('addressbook', help='List known contacts')
+    
+    # mail gui
+    gui_parser = mail_subparsers.add_parser('gui', help='Open mail GUI')
+    gui_parser.add_argument('agent_name', nargs='?', help='Optional agent name to impersonate')
 
     # Ignorujeme známé globální flagy při parsování subpříkazů
     known_argv = [a for a in argv if a not in ('--dry-run', '--debug', '-v', '--verbose', '-q', '--quiet')]

@@ -17,6 +17,7 @@ allow am-client *
 # tmux testing
 allow tmux ls *
 allow tmux list-windows *
+allow tmux list-sessions *
 allow tmux capture-pane -p -t ucas*
 allow tmux capture-pane -p -t ucas* *
 allow tmux send-keys -t ucas-team-pi-mail*

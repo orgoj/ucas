@@ -2,3 +2,4 @@ name: run-tmux
 description: Execution in a new tmux window
 run!:
   script: "__DIR__/tmux_runner.py"
+  stop_script: "__DIR__/tmux_stop.py"

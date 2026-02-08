@@ -104,6 +104,20 @@ if 'session_arg' in acli_def:
    - Use `os.path.expandvars()` for `$VAR` expansion
    - Use `shlex.split()` for proper quote handling
 
+## Usage for Agents
+
+When operating as an agent within a project, always use the `ucas` command directly. Do not look for binaries or scripts.
+
+```bash
+# Correct usage
+ucas mail list
+ucas run generic
+
+# INCORRECT
+./ucas-bin mail list
+python3 -m ucas mail list
+```
+
 ## Development Commands
 
 ### Running Tests
