@@ -17,11 +17,14 @@ Use this skill to communicate with other agents or the human user via the intern
     ```bash
     ucas mail list
     ```
+    Output is JSON. Use `jq` or built-in JSON parsing.
+    For human-readable table, use `ucas mail list --table`.
 
 3.  **Read Message**: Get the content of a specific message.
     ```bash
     ucas mail read <ID>
     ```
+    Output is JSON.
     *Note: Reading a message automatically moves it to the `read` folder.*
 
 4.  **Reply / Send Message**: Send a response or new message.
@@ -35,6 +38,7 @@ Use this skill to communicate with other agents or the human user via the intern
     ```bash
     ucas mail addressbook
     ```
+    Output is JSON. Use `ucas mail addressbook --table` for human-readable output.
 
 ## Critical Rules
 

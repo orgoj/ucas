@@ -64,17 +64,23 @@ def parse_args(argv=None):
     list_parser = mail_subparsers.add_parser('list', help='List mails')
     list_parser.add_argument('--all', action='store_true', help='Include read messages')
     list_parser.add_argument('--sent', action='store_true', help='Show sent messages')
+    list_parser.add_argument('--table', action='store_true', help='Output in human-readable table')
+    list_parser.add_argument('--json', action='store_true', help='Output in JSON format (default)')
     
     # mail read
     read_parser = mail_subparsers.add_parser('read', help='Read mail')
     read_parser.add_argument('id', help='Mail ID')
+    read_parser.add_argument('--table', action='store_true', help='Output in human-readable format')
+    read_parser.add_argument('--json', action='store_true', help='Output in JSON format (default)')
     
     # mail check
     check_parser = mail_subparsers.add_parser('check', help='Check for new mail')
     check_parser.add_argument('--idle', action='store_true', help='Wait for new mail')
 
     # mail addressbook
-    mail_subparsers.add_parser('addressbook', help='List known contacts')
+    addr_parser = mail_subparsers.add_parser('addressbook', help='List known contacts')
+    addr_parser.add_argument('--table', action='store_true', help='Output in human-readable table')
+    addr_parser.add_argument('--json', action='store_true', help='Output in JSON format (default)')
     
     # mail gui
     gui_parser = mail_subparsers.add_parser('gui', help='Open mail GUI')

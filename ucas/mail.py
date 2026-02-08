@@ -149,6 +149,27 @@ def send_mail(recipient: str, subject: str, body: str, reply_id: Optional[str] =
     """Send a mail to a recipient."""
     sender_name, sender_mail_dir = _get_sender_info(sender_override)
     
+    # Check reply-to address
+    if reply_id:
+        original_msg, _, _ = get_message_content(reply_id)
+        if original_msg:
+            orig_project = original_msg.get('from_project')
+            orig_sender = original_msg.get('from')
+            current_project = str(_get_project_root())
+            
+            # If replying to someone from another project, construct full address
+            if orig_project and orig_project != current_project and orig_sender != USER_AGENT_NAME:
+                # Unless recipient was explicitly overridden by user (which is passed as 'recipient' arg here)
+                # But 'recipient' arg is usually just the name from previous command if using --reply
+                # Actually, if user runs: ucas mail send --reply ID ... (without recipient?)
+                # CLI parser requires recipient.
+                # If user runs: ucas mail send alice "Re:..." --reply ID
+                # We should check if 'alice' needs project path.
+                
+                if recipient == orig_sender: # Only if user is replying to the sender
+                    recipient = f"{orig_sender}@{orig_project}"
+                    print(f"Replying to remote project: {recipient}")
+
     mail_id = _generate_mail_id()
     timestamp = int(time.time())
     
@@ -157,6 +178,7 @@ def send_mail(recipient: str, subject: str, body: str, reply_id: Optional[str] =
         "timestamp": timestamp,
         "date_str": datetime.fromtimestamp(timestamp).strftime("%Y-%m-%d %H:%M:%S"),
         "from": sender_name,
+        "from_project": str(_get_project_root()),
         "to": recipient,
         "subject": subject,
         "body": body,
@@ -201,7 +223,7 @@ def send_mail(recipient: str, subject: str, body: str, reply_id: Optional[str] =
             
     print(f"Mail sent to {sent_count} recipient(s).")
 
-def list_mail(show_all: bool = False, show_sent: bool = False):
+def list_mail(show_all: bool = False, show_sent: bool = False, json_output: bool = True):
     """List mails in inbox (default), read (with --all), or sent (with --sent)."""
     folders = []
     if show_sent:
@@ -213,35 +235,57 @@ def list_mail(show_all: bool = False, show_sent: bool = False):
             
     mails = get_messages(folders=folders)
     
+    # Enrich sender
+    current_proj = str(_get_project_root())
+    for m in mails:
+        from_proj = m.get('from_project')
+        if from_proj and from_proj != current_proj:
+            m['from_full'] = f"{m.get('from')}@{from_proj}"
+        else:
+            m['from_full'] = m.get('from')
+
+    if json_output:
+        print(json.dumps(mails, indent=2, ensure_ascii=False))
+        return
+    
     if not mails:
         print("No messages.")
         return
 
-    print(f"{'ID':<20} {'DATE':<20} {'FROM':<15} {'FOLDER':<8} {'SUBJECT'}")
-    print("-" * 80)
+    print(f"{'ID':<20} {'DATE':<20} {'FROM':<30} {'FOLDER':<8} {'SUBJECT'}")
+    print("-" * 100)
+    
     for m in mails:
         folder_mark = m['_folder']
-        print(f"{m.get('id'):<20} {m.get('date_str', ''):<20} {m.get('from', ''):<15} {folder_mark:<8} {m.get('subject', '')}")
+        sender = m['from_full']
+        print(f"{m.get('id'):<20} {m.get('date_str', ''):<20} {sender:<60} {folder_mark:<8} {m.get('subject', '')}")
 
-def read_mail(mail_id: str):
+def read_mail(mail_id: str, json_output: bool = True):
     """Read a specific mail by ID. Moves from inbox to read."""
     data, path, folder = get_message_content(mail_id)
     
     if not data:
-        print(f"Mail ID {mail_id} not found.")
+        if json_output:
+            print(json.dumps({"error": f"Mail ID {mail_id} not found"}, indent=2))
+        else:
+            print(f"Mail ID {mail_id} not found.")
         return
 
-    print(f"From:    {data.get('from')}")
-    print(f"To:      {data.get('to')}")
-    print(f"Date:    {data.get('date_str')}")
-    print(f"Subject: {data.get('subject')}")
-    print("-" * 40)
-    print(data.get('body'))
-    print("-" * 40)
+    if json_output:
+        print(json.dumps(data, indent=2, ensure_ascii=False))
+    else:
+        print(f"From:    {data.get('from')}")
+        print(f"To:      {data.get('to')}")
+        print(f"Date:    {data.get('date_str')}")
+        print(f"Subject: {data.get('subject')}")
+        print("-" * 40)
+        print(data.get('body'))
+        print("-" * 40)
     
     if folder == "inbox":
         mark_as_read(mail_id)
-        print("\n(Message moved to read folder)")
+        if not json_output:
+            print("\n(Message moved to read folder)")
 
 def get_address_book() -> List[Dict[str, str]]:
     """Get list of known contacts."""
@@ -270,9 +314,13 @@ def get_address_book() -> List[Dict[str, str]]:
                 
     return contacts
 
-def print_address_book():
+def print_address_book(json_output: bool = True):
     """Print address book to stdout."""
     contacts = get_address_book()
+    
+    if json_output:
+        print(json.dumps(contacts, indent=2, ensure_ascii=False))
+        return
     
     print(f"{'ADDRESS':<20} {'TYPE':<15} {'DESCRIPTION'}")
     print("-" * 60)

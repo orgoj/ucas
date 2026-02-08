@@ -223,16 +223,22 @@ def handle_mail(args):
         mail.send_mail(args.recipient, args.subject, body, reply_id=args.reply)
         
     elif args.mail_command == 'list':
-        mail.list_mail(show_all=args.all, show_sent=args.sent)
+        # Default to JSON unless --table is specified
+        json_output = not args.table
+        mail.list_mail(show_all=args.all, show_sent=args.sent, json_output=json_output)
         
     elif args.mail_command == 'read':
-        mail.read_mail(args.id)
+        # Default to JSON unless --table is specified
+        json_output = not args.table
+        mail.read_mail(args.id, json_output=json_output)
         
     elif args.mail_command == 'check':
         mail.check_mail(idle=args.idle)
         
     elif args.mail_command == 'addressbook':
-        mail.print_address_book()
+        # Default to JSON
+        json_output = not args.table
+        mail.print_address_book(json_output=json_output)
         
     elif args.mail_command == 'gui':
         try:

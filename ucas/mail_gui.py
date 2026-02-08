@@ -77,6 +77,11 @@ class MailApp:
         for item in self.tree.get_children():
             self.tree.delete(item)
             
+        # Clear message viewer
+        self.text_area.config(state=tk.NORMAL)
+        self.text_area.delete(1.0, tk.END)
+        self.text_area.config(state=tk.DISABLED)
+            
         folder = self.folder_var.get()
         # mail.get_messages expects list of folders to search
         # We modify mail.get_messages to take explicit agent if needed, 
