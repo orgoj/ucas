@@ -5,40 +5,76 @@ Simple Tkinter GUI for UCAS Mail.
 import sys
 import tkinter as tk
 from tkinter import ttk, messagebox, simpledialog
+from pathlib import Path
 from . import mail
+
+# Enforce uppercase USER
+USER_AGENT_NAME = "USER"
 
 class MailApp:
     def __init__(self, root, agent_name=None):
         self.root = root
-        self.agent_name = agent_name or "user"
+        self.agent_name = agent_name or USER_AGENT_NAME
         self.root.title(f"UCAS Mail - {self.agent_name}")
-        self.root.geometry("800x600")
+        self.root.geometry("1000x700")
         
-        # Override sender info in mail module for this session
-        self.original_env_agent = mail.os.environ.get("UCAS_AGENT")
-        if self.agent_name != "user":
-            mail.os.environ["UCAS_AGENT"] = self.agent_name
+        # Override sender info in mail module for this session if needed
+        # But mail module uses os.environ["UCAS_AGENT"]
+        # If we are viewing as USER, we should UNSET UCAS_AGENT to be safe?
+        # Or set it to USER_AGENT_NAME?
+        # mail.py: if agent_name == USER_AGENT_NAME -> USER_MAIL_DIR
+        # but _get_sender_info: if override_agent -> return it.
+        # GUI doesn't set env var for the whole process, but maybe it should for child calls?
+        # Actually standard mail operations in GUI just call mail functions directly.
+        # We don't rely on env var for "viewing" logic inside GUI class, 
+        # but we might for 'send_mail'.
+        
+        self.current_project = str(mail._get_project_root())
         
         self.setup_ui()
+        self.load_projects()
         self.load_mails()
 
     def setup_ui(self):
+        # Sidebar for Projects/Mailboxes
+        sidebar = ttk.Frame(self.root, width=200, padding=5)
+        sidebar.pack(side=tk.LEFT, fill=tk.Y)
+        
+        ttk.Label(sidebar, text="Mailboxes", font=("Arial", 12, "bold")).pack(anchor="w", pady=5)
+        
+        self.project_list = tk.Listbox(sidebar, selectmode=tk.SINGLE, height=10)
+        self.project_list.pack(fill=tk.X, pady=5)
+        self.project_list.bind("<<ListboxSelect>>", self.on_project_select)
+        
+        # Add User Mailbox option
+        self.project_list.insert(tk.END, "User Mailbox (Global)")
+        
+        # Current Scope Label
+        self.scope_label = ttk.Label(sidebar, text=f"Scope: {self.current_project}", wraplength=190)
+        self.scope_label.pack(side=tk.BOTTOM, pady=10)
+
+        # Main Content
+        main_frame = ttk.Frame(self.root)
+        main_frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True)
+
         # Toolbar
-        toolbar = ttk.Frame(self.root, padding=5)
+        toolbar = ttk.Frame(main_frame, padding=5)
         toolbar.pack(side=tk.TOP, fill=tk.X)
         
         ttk.Button(toolbar, text="Refresh", command=self.load_mails).pack(side=tk.LEFT, padx=2)
         ttk.Button(toolbar, text="New Message", command=self.compose_mail).pack(side=tk.LEFT, padx=2)
         ttk.Button(toolbar, text="Reply", command=self.reply_mail).pack(side=tk.LEFT, padx=2)
+        ttk.Button(toolbar, text="Archive", command=self.archive_mail).pack(side=tk.LEFT, padx=2)
         
         # Folder Selection
         self.folder_var = tk.StringVar(value="inbox")
         ttk.Radiobutton(toolbar, text="Inbox", variable=self.folder_var, value="inbox", command=self.load_mails).pack(side=tk.LEFT, padx=10)
         ttk.Radiobutton(toolbar, text="Sent", variable=self.folder_var, value="sent", command=self.load_mails).pack(side=tk.LEFT, padx=2)
         ttk.Radiobutton(toolbar, text="Read", variable=self.folder_var, value="read", command=self.load_mails).pack(side=tk.LEFT, padx=2)
+        ttk.Radiobutton(toolbar, text="Archive", variable=self.folder_var, value="archive", command=self.load_mails).pack(side=tk.LEFT, padx=2)
 
         # Paned Window (Split View)
-        paned = ttk.PanedWindow(self.root, orient=tk.VERTICAL)
+        paned = ttk.PanedWindow(main_frame, orient=tk.VERTICAL)
         paned.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
         
         # Mail List
@@ -49,12 +85,12 @@ class MailApp:
         self.tree = ttk.Treeview(list_frame, columns=columns, show="headings", selectmode="browse")
         self.tree.heading("id", text="ID")
         self.tree.heading("date", text="Date")
-        self.tree.heading("from", text="From/To")
+        self.tree.heading("from", text="From")
         self.tree.heading("subject", text="Subject")
         
         self.tree.column("id", width=150, anchor="w")
         self.tree.column("date", width=150, anchor="w")
-        self.tree.column("from", width=100, anchor="w")
+        self.tree.column("from", width=200, anchor="w")
         self.tree.column("subject", width=350, anchor="w")
         
         scrollbar = ttk.Scrollbar(list_frame, orient=tk.VERTICAL, command=self.tree.yview)
@@ -72,36 +108,69 @@ class MailApp:
         self.text_area = tk.Text(viewer_frame, wrap=tk.WORD, state=tk.DISABLED, font=("Consolas", 10))
         self.text_area.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
 
+    def load_projects(self):
+        # Load from ~/.ucas/mail-projects.txt
+        projects = []
+        try:
+            if mail.PROJECT_LIST_FILE.exists():
+                projects = mail.PROJECT_LIST_FILE.read_text().splitlines()
+        except:
+            pass
+            
+        # Add to listbox
+        for p in projects:
+            if Path(p).exists():
+                self.project_list.insert(tk.END, p)
+
+    def on_project_select(self, event):
+        selection = self.project_list.curselection()
+        if not selection:
+            return
+            
+        value = self.project_list.get(selection[0])
+        if value == "User Mailbox (Global)":
+            self.agent_name = USER_AGENT_NAME
+            self.current_project = "GLOBAL"
+            # Update scope label??
+        else:
+            # Switch project?
+            # Creating a GUI for PROJECT SWITCHING inside mail client is complex
+            # because mail module relies on _get_project_root() which uses CWD.
+            # To support switching, we'd need to mock _get_project_root or pass explicit root.
+            # mail.py functions need refactoring to accept project_root more widely?
+            # _get_agent_mail_dir takes project_root.
+            # get_messages calls _get_sender_info which calls _get_agent_mail_dir.
+            # But get_messages DOES NOT accept project_root arg.
+            # It relies on _get_sender_info which relies on env/cwd.
+            
+            # Since strict plan said "User Mailbox OR Project", maybe we stick to current project for now?
+            # Or we hack CWD?
+            pass
+        
+        # For now, just logging
+        print(f"Project switching not fully implemented in GUI (needs backend support). Selected: {value}")
+
+
     def load_mails(self):
         # Clear current list
         for item in self.tree.get_children():
             self.tree.delete(item)
             
-        # Clear message viewer
         self.text_area.config(state=tk.NORMAL)
         self.text_area.delete(1.0, tk.END)
         self.text_area.config(state=tk.DISABLED)
             
         folder = self.folder_var.get()
-        # mail.get_messages expects list of folders to search
-        # We modify mail.get_messages to take explicit agent if needed, 
-        # but here we relied on env var hack in __init__ or we can update mail.py again.
-        # Let's rely on the env var hack for now as it's simplest for KISS.
         
-        # Actually mail.get_messages calls _get_sender_info which checks env vars.
+        # If we are viewing as USER, we want to see USER's inbox
+        # If we are viewing as AGENT, we want to see AGENT's inbox
+        # mail.get_messages(agent_name) handles this.
         
-        # We need to construct list of folders. get_messages searches ALL given folders.
-        # But we want to filter by folder in UI.
-        
-        # Let's call a lower level function or just filter results?
-        # mail.get_messages returns everything from passed folders.
-        
-        msgs = mail.get_messages(folders=[folder])
+        msgs = mail.get_messages(self.agent_name, folders=[folder])
         
         for msg in msgs:
-            # Display 'To' if in Sent folder, otherwise 'From'
-            display_name = msg.get('to') if folder == 'sent' else msg.get('from')
-            self.tree.insert("", tk.END, values=(msg.get('id'), msg.get('date_str'), display_name, msg.get('subject')), iid=msg.get('id'))
+            display_from = msg.get('to') if folder == 'sent' else msg.get('from')
+            self.tree.insert("", tk.END, values=(msg.get('id'), msg.get('date_str'), display_from, msg.get('subject')), iid=msg.get('id'))
 
     def on_select(self, event):
         selection = self.tree.selection()
@@ -109,24 +178,12 @@ class MailApp:
             return
         
         mail_id = selection[0]
-        folder = self.folder_var.get()
-        
-        # We need to fetch full content
-        # mail.get_message_content searches all folders, which is fine
-        data, path, found_folder = mail.get_message_content(mail_id)
+        data, _, found_folder = mail.get_message_content(mail_id, self.agent_name)
         
         if data:
             self.display_message(data)
-            # If checking inbox, move to read?
-            # Maybe only on explicit action or double click?
-            # For now, let's auto-mark read if in inbox
             if found_folder == 'inbox':
-                mail.mark_as_read(mail_id)
-                # Refresh list if we are in inbox to show it moved? 
-                # Or just keep it there until refresh.
-                # Standard mail clients keep it but unbold it.
-                # Here we physically move files. So it will disappear on refresh.
-                # Let's just update the status internally but not refresh immediately to not jar the user.
+                mail.mark_as_read(mail_id, self.agent_name)
 
     def display_message(self, data):
         self.text_area.config(state=tk.NORMAL)
@@ -136,6 +193,8 @@ class MailApp:
         header += f"To:      {data.get('to')}\n"
         header += f"Date:    {data.get('date_str')}\n"
         header += f"Subject: {data.get('subject')}\n"
+        if data.get('from_project'):
+             header += f"Project: {data.get('from_project')}\n"
         header += "-" * 60 + "\n\n"
         
         self.text_area.insert(tk.END, header)
@@ -143,7 +202,7 @@ class MailApp:
         self.text_area.config(state=tk.DISABLED)
 
     def compose_mail(self, reply_to=None):
-        ComposeWindow(self.root, reply_to)
+        ComposeWindow(self.root, reply_to, self.agent_name)
 
     def reply_mail(self):
         selection = self.tree.selection()
@@ -152,15 +211,24 @@ class MailApp:
             return
         
         mail_id = selection[0]
-        data, _, _ = mail.get_message_content(mail_id)
+        data, _, _ = mail.get_message_content(mail_id, self.agent_name)
         if data:
             self.compose_mail(reply_to=data)
 
+    def archive_mail(self):
+        selection = self.tree.selection()
+        if not selection:
+            return
+        mail_id = selection[0]
+        mail.archive_mail(mail_id, self.agent_name)
+        self.load_mails()
+
 class ComposeWindow:
-    def __init__(self, parent, reply_to=None):
+    def __init__(self, parent, reply_to=None, sender_name=None):
         self.top = tk.Toplevel(parent)
         self.top.title("Compose Message")
         self.top.geometry("600x400")
+        self.sender_name = sender_name
         
         # Fields
         tk.Label(self.top, text="To:").grid(row=0, column=0, sticky="e", padx=5, pady=5)
@@ -202,9 +270,8 @@ class ComposeWindow:
             return
             
         try:
-            # We use the public send_mail from ucas.mail
-            # Since we set the ENV var in MailApp, send_mail will pick up the right sender
-            mail.send_mail(recipient, subject, body, reply_id=self.reply_id)
+            # Pass sender_override to send_mail
+            mail.send_mail(recipient, subject, body, reply_id=self.reply_id, sender_override=self.sender_name)
             messagebox.showinfo("Success", "Mail sent successfully")
             self.top.destroy()
         except Exception as e:

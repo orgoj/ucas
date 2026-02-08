@@ -31,21 +31,6 @@ def parse_args(argv=None):
 
     subparsers = parser.add_subparsers(dest='command', help='Commands')
 
-    # run
-    run_parser = subparsers.add_parser('run', help='Run an agent')
-    run_parser.add_argument('agent', help='Agent name')
-    run_parser.add_argument('mods', nargs='*', help='Mods (+mod)')
-
-    # run-team
-    team_parser = subparsers.add_parser('run-team', help='Run a team')
-    team_parser.add_argument('team', nargs='?', help='Team name (optional if defined in project config)')
-    team_parser.add_argument('mods', nargs='*', help='Global team mods')
-
-    # stop-team
-    stop_parser = subparsers.add_parser('stop-team', help='Stop a team')
-    stop_parser.add_argument('team', nargs='?', help='Team name (optional if defined in project config)')
-    stop_parser.add_argument('mods', nargs='*', help='Mods')
-
     # ls-mods
     subparsers.add_parser('ls-mods', help='List available mods')
 
@@ -53,17 +38,32 @@ def parse_args(argv=None):
     mail_parser = subparsers.add_parser('mail', help='Mail system')
     mail_subparsers = mail_parser.add_subparsers(dest='mail_command', help='Mail commands')
     
-    # mail send
-    send_parser = mail_subparsers.add_parser('send', help='Send mail')
-    send_parser.add_argument('recipient', help='Recipient name (or ALL)')
-    send_parser.add_argument('subject', help='Subject line')
-    send_parser.add_argument('--body', help='Message body (optional, otherwise reads from stdin)')
-    send_parser.add_argument('--reply', help='ID of message being replied to')
+    # mail addressbook
+    addr_parser = mail_subparsers.add_parser('addressbook', help='List known contacts')
+    addr_parser.add_argument('--table', action='store_true', help='Output in human-readable table')
+    addr_parser.add_argument('--json', action='store_true', help='Output in JSON format (default)')
+    
+    # mail archive
+    archive_parser = mail_subparsers.add_parser('archive', help='Archive a message')
+    archive_parser.add_argument('id', help='Mail ID')
+
+    # mail check
+    check_parser = mail_subparsers.add_parser('check', help='Check for new mail')
+    check_parser.add_argument('--idle', action='store_true', help='Wait for new mail')
+
+    # mail gui
+    gui_parser = mail_subparsers.add_parser('gui', help='Open mail GUI')
+    gui_parser.add_argument('agent_name', nargs='?', help='Optional agent name to impersonate')
+
+    # mail instruction
+    instr_parser = mail_subparsers.add_parser('instruction', help='Show mail instructions')
+    instr_parser.add_argument('agent_name', nargs='?', help='Agent name')
     
     # mail list
     list_parser = mail_subparsers.add_parser('list', help='List mails')
     list_parser.add_argument('--all', action='store_true', help='Include read messages')
     list_parser.add_argument('--sent', action='store_true', help='Show sent messages')
+    list_parser.add_argument('--archive', action='store_true', help='Show archived messages')
     list_parser.add_argument('--table', action='store_true', help='Output in human-readable table')
     list_parser.add_argument('--json', action='store_true', help='Output in JSON format (default)')
     
@@ -73,18 +73,35 @@ def parse_args(argv=None):
     read_parser.add_argument('--table', action='store_true', help='Output in human-readable format')
     read_parser.add_argument('--json', action='store_true', help='Output in JSON format (default)')
     
-    # mail check
-    check_parser = mail_subparsers.add_parser('check', help='Check for new mail')
-    check_parser.add_argument('--idle', action='store_true', help='Wait for new mail')
-
-    # mail addressbook
-    addr_parser = mail_subparsers.add_parser('addressbook', help='List known contacts')
-    addr_parser.add_argument('--table', action='store_true', help='Output in human-readable table')
-    addr_parser.add_argument('--json', action='store_true', help='Output in JSON format (default)')
+    # mail send
+    send_parser = mail_subparsers.add_parser('send', help='Send mail')
+    send_parser.add_argument('recipient', nargs='?', help='Recipient name (or ALL). Optional if --reply is used.')
+    send_parser.add_argument('subject', nargs='?', help='Subject line. Optional if --reply is used.')
+    send_parser.add_argument('--body', help='Message body (optional, otherwise reads from stdin)')
+    send_parser.add_argument('--reply', help='ID of message being replied to')
     
-    # mail gui
-    gui_parser = mail_subparsers.add_parser('gui', help='Open mail GUI')
-    gui_parser.add_argument('agent_name', nargs='?', help='Optional agent name to impersonate')
+    # run
+    run_parser = subparsers.add_parser('run', help='Run an agent')
+    run_parser.add_argument('agent', help='Agent name')
+    run_parser.add_argument('mods', nargs='*', help='Mods (+mod)')
+
+    # team
+    team_grp_parser = subparsers.add_parser('team', help='Team management')
+    team_subparsers = team_grp_parser.add_subparsers(dest='team_command', help='Team commands')
+    
+    # team run
+    team_run = team_subparsers.add_parser('run', help='Run a team')
+    team_run.add_argument('team', nargs='?', help='Team name')
+    team_run.add_argument('mods', nargs='*', help='Global team mods')
+    
+    # team status
+    team_status = team_subparsers.add_parser('status', help='Show team status')
+    team_status.add_argument('target', nargs='?', help='Team name or Agent name')
+    team_status.add_argument('-n', '--lines', type=int, help='Number of log lines to capture')
+
+    # team stop
+    team_stop = team_subparsers.add_parser('stop', help='Stop a team')
+    team_stop.add_argument('team', nargs='?', help='Team name')
 
     # Ignorujeme známé globální flagy při parsování subpříkazů
     known_argv = [a for a in argv if a not in ('--dry-run', '--debug', '-v', '--verbose', '-q', '--quiet')]
@@ -95,7 +112,10 @@ def parse_args(argv=None):
         sys.exit(1)
 
     # Process mods prefix
-    if args.command in ('run', 'run-team', 'stop-team') and hasattr(args, 'mods'):
+    if args.command == 'run' and hasattr(args, 'mods'):
+         args.mods = [m[1:] if m.startswith('+') else m for m in args.mods]
+    
+    if args.command == 'team' and args.team_command == 'run' and hasattr(args, 'mods'):
         args.mods = [m[1:] if m.startswith('+') else m for m in args.mods]
 
     return args

@@ -9,17 +9,19 @@ import subprocess
 import uuid
 import os
 import sys
+import time
 from pathlib import Path
 from typing import List, Dict, Any, Optional
 from datetime import datetime
 
 
 from . import settings
+# Imports for _prepare_and_run_member
+from .resolver import get_acli_config, get_run_config, find_entity
+from .merger import merge_configs, collect_skills, resolve_entities
 
 
-class LaunchError(Exception):
-    """Error during command launch."""
-    pass
+from .exceptions import LaunchError
 
 
 def prepare_context(
@@ -151,7 +153,6 @@ def build_command(
     prompt: Optional[str] = None
 ) -> str:
     """Build final command string from ACLI block."""
-    from .resolver import get_acli_config
     acli_def = get_acli_config(merged_config)
     executable = acli_def.get('executable')
     if not executable:
@@ -389,3 +390,107 @@ def select_run_mod(merged_config: Dict[str, Any]) -> str:
         return allowed[0]
     
     return 'run-tmux'  # Hardcoded default fallback
+
+
+def prepare_and_run_member(
+    member_name: str,
+    agent_name: str,
+    mods: List[str],
+    prefix: str = "",
+    team_name: str = None,
+    team_index: int = 0,
+    team_size: int = 1,
+    prompt: str = None,
+    model: str = None,
+    provider: str = None
+) -> None:
+    """Prepare and run a single agent member."""
+    # 1. First resolution to get search paths and base_config
+    agent_path, explicit_mod_paths, search_paths, base_config = resolve_entities(agent_name, mods)
+    
+    # 2. Identify default mods from base_config
+    raw_default_mods = base_config.get('mods', [])
+    default_mod_names = raw_default_mods if isinstance(raw_default_mods, list) else [raw_default_mods]
+    
+    # 3. Resolve default mod paths
+    default_mod_paths = []
+    for m_name in default_mod_names:
+        p = find_entity(m_name, search_paths)
+        if p: default_mod_paths.append(p)
+
+    # 4. Perform sandwich merge with correct priorities:
+    # System -> Default Mods -> Agent -> Explicit Mods -> Overrides
+    merged_config = merge_configs(agent_path, default_mod_paths, explicit_mod_paths)
+    
+    # 5. Add default ACLI if missing (look up again if needed)
+    acli_def = get_acli_config(merged_config)
+    if not acli_def.get('executable'):
+        def_acli = merged_config.get('default_acli') or base_config.get('default_acli')
+        if def_acli:
+            acli_path = find_entity(def_acli, search_paths)
+            if acli_path:
+                explicit_mod_paths.append(acli_path)
+                merged_config = merge_configs(agent_path, default_mod_paths, explicit_mod_paths)
+
+    # 6. Add default RUN if missing
+    run_def = get_run_config(merged_config)
+    if not run_def:
+        def_run = merged_config.get('default_run') or base_config.get('default_run') or 'run-tmux'
+        run_path = find_entity(def_run, search_paths)
+        if run_path:
+            explicit_mod_paths.append(run_path)
+            merged_config = merge_configs(agent_path, default_mod_paths, explicit_mod_paths)
+
+    if model: merged_config['requested_model'] = model
+    if provider: merged_config['requested_provider'] = provider
+
+    context = prepare_context(member_name, agent_path, team_name, team_index, team_size)
+    
+    env_config = merged_config.get('env', {})
+    for k, v in env_config.items():
+        context[k] = expand_variables(v, context) if isinstance(v, str) else str(v)
+
+    all_mod_paths = default_mod_paths + explicit_mod_paths
+    skills_dirs = collect_skills(agent_path, all_mod_paths)
+    
+    main_cmd = build_command(
+        agent_path,
+        all_mod_paths,
+        merged_config,
+        skills_dirs,
+        context,
+        prompt
+    )
+
+    acli_def = get_acli_config(merged_config)
+    context['UCAS_ACLI_EXE'] = acli_def.get('executable', '')
+    context['UCAS_MAIN_COMMAND'] = main_cmd
+
+    all_cmds = [get_context_export_str(context)]
+    hooks = merged_config.get('hooks', {})
+    
+    prerun = hooks.get('prerun', [])
+    if isinstance(prerun, str): prerun = [prerun]
+    all_cmds.extend(prerun)
+    all_cmds.append(main_cmd)
+    
+    postrun = hooks.get('postrun', [])
+    if isinstance(postrun, str): postrun = [postrun]
+    all_cmds.extend(postrun)
+    
+    final_command = ' && '.join(all_cmds)
+    run_def = get_run_config(merged_config)
+    if not run_def:
+        raise LaunchError("No 'run' block found in final configuration")
+    
+    # Validation step for team context
+    validate_runner(run_def, context)
+
+    if settings.DRY_RUN:
+        if settings.DEBUG: print(f"[DEBUG] Dry run enabled, getting preview...", file=sys.stderr)
+        runner_preview = get_runner_preview(run_def, final_command, member_name, context)
+        print(f"{prefix}[DRY-RUN] {runner_preview}")
+    else:
+        if settings.DEBUG: print(f"[DEBUG] Real run, executing...", file=sys.stderr)
+        HookRunner(context).run(hooks, 'install')
+        run_command(run_def, final_command, member_name, context)

@@ -2,6 +2,46 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.9.2] - 2026-02-08
+
+### Added
+- **Team Autostart**: Enable `team_autostart: true` in `ucas.yaml` to trigger `ucas team run` automatically upon receiving mail if no team is running.
+- **Smart Address Book**: 
+  - Centralized discovery of USER and team members.
+  - Supports `mail-addressbook` configuration in `ucas.yaml` for external contacts.
+  - Automatically fetches descriptions for local agents from their mod configurations.
+- **Cross-Project Mail**: Native support for `agent@/path` addressing.
+- **Auto-Reply Improvements**: 
+  - `ucas mail send --reply <ID>` now automatically resolves both recipient AND subject (prefixed with `Re:`).
+  - CLI arguments `recipient` and `subject` are now optional when `--reply` is present.
+- **Startup Notifications**: `ucas team run` now alerts users to pending mail for team members.
+- **Centralized Exceptions**: Moved `LaunchError` and `MergerError` to `ucas/exceptions.py` to resolve circular dependencies.
+- Comprehensive test suite for the mail system (`tests/test_mail.py`).
+
+### Changed
+- **Security**: AI agents are now blocked from launching the Mail GUI (`ucas mail gui`).
+- **Compatibility**: Restored support for `UCAS_AGENT_NOTES` to determine project root for agent mailboxes.
+- **CLI**: The `--json` flag is now correctly respected in `mail list`, `mail read`, and `mail addressbook`.
+- Refactored `send_mail` for delivery abstraction.
+- Enhanced instructions template for better agent guidance.
+- Updated project version to 0.9.2.
+
+## [0.9.1] - 2026-02-08
+
+### Changed
+- **BREAKING**: Replaced `ucas run-team` with `ucas team run`.
+- **BREAKING**: Replaced `ucas stop-team` with `ucas team stop`.
+- **BREAKING**: Mail storage format changed from JSON to standard EML.
+- **BREAKING**: Mail paths optimized (User mail in `~/.ucas/mails/USER`, project mails in `.ucas/mails`).
+- Refactored `using-ucas-mail` skill to dynamically fetch instructions via CLI.
+
+### Added
+- `ucas team status`: Show status of running teams and agents.
+- `ucas mail instruction`: Print instructions for agents on using the mail system.
+- `ucas mail archive`: Move messages to archive folder.
+- `ucas mail list --archive`: View archived messages.
+- `mails: true` configuration in project `ucas.yaml` to enable project-level mailboxes.
+
 ## [0.9.0] - 2026-02-08
 
 ### Added

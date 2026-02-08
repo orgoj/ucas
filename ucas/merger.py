@@ -3,11 +3,12 @@ Sandwich merge logic: System → Defaults Mods → Agent → Explicit Mods → O
 """
 
 from pathlib import Path
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Tuple
 import sys
 
+from .exceptions import MergerError
 from . import settings
-from .resolver import get_layer_config_paths, load_config_file
+from .resolver import get_layer_config_paths, load_config_file, get_search_paths, find_entity, load_config
 
 
 def merge_configs(
@@ -149,3 +150,60 @@ def collect_skills(agent_path: Path, mod_paths: List[Path]) -> List[Path]:
             skills_dirs.append(mod_skills.resolve())
 
     return skills_dirs
+
+
+# MergerError is now in .exceptions
+
+
+def resolve_entities(agent_name: str, mods: List[str]) -> Tuple[Path, List[Path], List[Path], Dict[str, Any]]:
+    """Resolve agent and mods with dynamic search path expansion."""
+    (sys_cfg, _), (usr_cfg, _), (prj_cfg, _) = get_layer_config_paths()
+    base_config = {}
+    
+    for layer_name, cfg in [('System', sys_cfg), ('User', usr_cfg), ('Project', prj_cfg)]:
+        if cfg:
+            base_config = _merge_dicts(base_config, load_config_file(cfg), settings.DEBUG, f"Base:{layer_name}")
+
+    extra_paths = base_config.get('mod_path', [])
+    if isinstance(extra_paths, str): extra_paths = [extra_paths]
+    
+    search_paths = get_search_paths(extra_paths, base_config.get('strict', False))
+    
+    # 1. Resolve Agent
+    agent_path = find_entity(agent_name, search_paths)
+    if not agent_path:
+        raise MergerError(f"Agent '{agent_name}' not found")
+
+    # Dynamic search path update from agent
+    _update_search_paths(search_paths, agent_path)
+
+    # 2. Resolve Mods sequentially, updating search paths after each
+    mod_paths = []
+    for mod_item in mods:
+        mod_name = mod_item['name'] if isinstance(mod_item, dict) else mod_item
+        m_path = find_entity(mod_name, search_paths)
+        if not m_path:
+            raise MergerError(f"Mod '{mod_name}' not found")
+        mod_paths.append(m_path)
+        
+        _update_search_paths(search_paths, m_path)
+
+    return agent_path, mod_paths, search_paths, base_config
+
+
+def _update_search_paths(search_paths: List[Path], entity_path: Path):
+    """Read entity config and prepend any mod_path to search_paths."""
+    cfg = load_config(entity_path)
+    new_paths = cfg.get('mod_path', [])
+    if isinstance(new_paths, str):
+        new_paths = [new_paths]
+    
+    for p in reversed(new_paths): # reversed so they keep order when prepending
+        p_path = Path(p)
+        if not p_path.is_absolute():
+            p_path = (entity_path / p).resolve()
+        
+        if p_path.exists() and p_path.is_dir():
+            if p_path not in search_paths:
+                if settings.DEBUG: print(f"[RESOLVER] Adding dynamic search path: {p_path}", file=sys.stderr)
+                search_paths.insert(0, p_path)

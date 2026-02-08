@@ -35,24 +35,36 @@ ucas run generic +run-bash         # Run directly in current terminal
 
 ### Run a Team
 ```bash
-ucas run-team my-dev-team
+ucas team run my-dev-team   # Start a team
+ucas team status            # Check status of running teams
+ucas team stop my-dev-team  # Stop a team
 ```
 
+**Team Autostart**: Teams can be configured to start automatically when a mail arrives if no team is running. Add `team_autostart: true` to your `ucas.yaml`.
+
 ### Agent Mail System
-Communicate with agents using the built-in file-based mail system.
+Communicate with agents using the built-in EML-based mail system.
+Requires `mails: true` in your project configuration to enable agent mailboxes.
+
+- **Address Book**: Use `ucas mail addressbook` to find contacts. Descriptions for local agents are fetched from their `ucas.yaml`.
+- **Cross-Project Communication**: Send mail to agents in other folders using `agent-name@/path/to/project`.
+- **Auto-Reply**: Replying to a message (`--reply <ID>`) automatically resolves the recipient.
 
 ```bash
-# Send a message
+# List available contacts
+ucas mail addressbook
+
+# Send a message (recipient optional if replying)
 echo "Hello Agent" | ucas mail send agent-name "Subject"
 
-# Check inbox
-ucas mail check
-
-# List messages
+# Check inbox (notifies if new mail is waiting)
 ucas mail list
 
-# Read a message
+# Read a message (moves to read folder)
 ucas mail read <ID>
+
+# Archive a message
+ucas mail archive <ID>
 ```
 
 ## Global Options
@@ -64,9 +76,9 @@ ucas mail read <ID>
 
 ## Configuration (ucas.yaml)
 
-UCAS uses `ucas.yaml` files at various levels.
+UCAS is highly configurable using `ucas.yaml` files. You can find the full list of available keys, merge strategies, and variable expansions in the official [Configuration Reference](CONFIGURATION.md).
 
-### Mod Definition Example
+### Quick Example (Mod)
 ```yaml
 name: my-mod
 description: A useful capability
@@ -74,13 +86,6 @@ acli!: # Force-overwrite ACLI block
   executable: my-cli
   prompt_arg: --prompt
   skills_dir: --tools
-```
-
-### Runner Definition Example
-```yaml
-name: my-runner
-run!: # Force-overwrite RUN block
-  script: "__DIR__/runner.py" # __DIR__ resolves to mod folder
 ```
 
 ## Mod Layers
