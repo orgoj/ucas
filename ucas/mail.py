@@ -64,7 +64,7 @@ def _ensure_mail_dirs(base_dir: Path):
         (base_dir / subdir).mkdir(parents=True, exist_ok=True)
 
 def _generate_mail_id() -> str:
-    """Generate a unique mail ID based on timestamp and random hash."""
+    """Generate a unique mail ID."""
     timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
     random_part = hashlib.md5(os.urandom(16)).hexdigest()[:4]
     return f"{timestamp}-{random_part}"
@@ -137,7 +137,7 @@ def _deliver_mail(target_dir: Path, msg: EmailMessage) -> bool:
 
 def get_messages(agent_name: Optional[str] = None, folders: List[str] = None, project_root: Optional[Path] = None) -> List[Dict]:
     """Get list of messages for an agent."""
-    mail_dir = _get_agent_mail_dir(agent_name or USER_AGENT_NAME, project_root)
+    name, mail_dir = _get_sender_info(agent_name, project_root)
     if not mail_dir.exists():
         return []
     
@@ -155,7 +155,7 @@ def get_messages(agent_name: Optional[str] = None, folders: List[str] = None, pr
 
 def get_message_content(mail_id: str, agent_name: Optional[str] = None, project_root: Optional[Path] = None) -> Tuple[Optional[Dict], Optional[Path], Optional[str]]:
     """Get message content and file path. Returns (data, filepath, foldername)."""
-    mail_dir = _get_agent_mail_dir(agent_name or USER_AGENT_NAME, project_root)
+    name, mail_dir = _get_sender_info(agent_name, project_root)
     for folder in ["inbox", "read", "sent", "archive"]:
         path = mail_dir / folder / f"{mail_id}.eml"
         if path.exists():
@@ -221,9 +221,7 @@ def send_mail(recipient: str, subject: str, body: str, reply_id: Optional[str] =
         targets = []
         if mails_dir.exists():
             for agent_dir in mails_dir.iterdir():
-                # Only lowercase directories are agents
                 if agent_dir.is_dir() and agent_dir.name.islower():
-                    # ALL does not send to self
                     if agent_dir.name == sender_name:
                         continue
                     targets.append((agent_dir.name, agent_dir))
@@ -253,10 +251,10 @@ def list_mail(show_all=False, show_sent=False, show_archive=False, json_output=T
         print("No messages.")
         return
 
-    print(f"{'ID':<20} {'DATE':<20} {'FROM':<30} {'FOLDER':<8} {'SUBJECT'}")
-    print("-" * 100)
+    print(f"{'ID':<20} {'DATE':<20} {'FROM':<30} {'TO':<30} {'FOLDER':<8} {'SUBJECT'}")
+    print("-" * 140)
     for m in mails:
-        print(f"{m.get('id'):<20} {m.get('date_str')[:19]:<20} {m.get('from'):<30} {m['_folder']:<8} {m.get('subject')}")
+        print(f"{m.get('id'):<20} {m.get('date_str')[:19]:<20} {m.get('from'):<30} {m.get('to'):<30} {m['_folder']:<8} {m.get('subject')}")
 
 def read_mail(mail_id: str, json_output=True):
     """Read a specific mail by ID. Moves from inbox to read."""
@@ -309,8 +307,15 @@ def get_instruction(agent_name: Optional[str] = None) -> str:
     name = agent_name or os.environ.get("UCAS_AGENT") or USER_AGENT_NAME
     return f"""# UCAS Mail System Instructions for {name}
 
-Use `ucas mail check --idle` to wait for tasks. Use `ucas mail send` with `--body`. Always use JSON output.
-NEVER use `ucas run` to send messages to other agents. Use ONLY `ucas mail send`."""
+Use `ucas mail check --idle` to wait for tasks. Use `ucas mail send` with `--body`. 
+
+## JSON OUTPUT
+- `ucas mail list`, `ucas mail read`, and `ucas mail addressbook` return JSON by default.
+- **DO NOT** use the `--json` flag with `ucas mail send` or `ucas mail check`.
+
+## COMMUNICATION
+- NEVER use `ucas run` to send messages to other agents. Use ONLY `ucas mail send`.
+- Report to the human user (USER) only via `ucas mail send USER`."""
 
 def check_mail(idle=False):
     """Check for new mail."""
@@ -328,7 +333,15 @@ def check_mail(idle=False):
             time.sleep(5)
             
     if any(inbox.glob("*.eml")):
-        for m in get_messages(folders=['inbox']):
-            print(f"ID: {m['id']}\nFrom: {m['from']}\nSubj: {m['subject']}\nCommand: ucas mail read {m['id']}\n" + "-"*40)
-        sys.exit(0)
+        # Important: call get_messages with agent_name explicitly from info
+        msgs = get_messages(agent_name=info[0], folders=['inbox'])
+        if msgs:
+            print("\n*** NEW MAIL RECEIVED ***")
+            for m in msgs:
+                print(f"ID:      {m['id']}")
+                print(f"From:    {m['from']}")
+                print(f"Subject: {m['subject']}")
+                print(f"Command: ucas mail read {m['id']}")
+                print("-" * 40)
+            sys.exit(0)
     sys.exit(1)

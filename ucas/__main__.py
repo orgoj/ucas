@@ -56,6 +56,9 @@ def handle_mail(args):
         sys.exit(1)
 
     if args.mail_command == 'send':
+        recipient = args.recipient or args.to
+        subject = args.subject or args.subject_flag
+        
         if args.body:
             body = args.body
         else:
@@ -64,7 +67,7 @@ def handle_mail(args):
                 print("Enter message body (Ctrl+D to finish):")
             body = sys.stdin.read()
             
-        mail.send_mail(args.recipient, args.subject, body, reply_id=args.reply)
+        mail.send_mail(recipient, subject, body, reply_id=args.reply)
         
     elif args.mail_command == 'list':
         # Respect --json flag, fallback to not --table

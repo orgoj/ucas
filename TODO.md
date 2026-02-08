@@ -1,5 +1,7 @@
 # UCAS Project Roadmap & TODO
 
+- definovatelny command kdyz USER prijde novy mail, do meho user config nastavit notify-send "ucas mail" "message3" -u normal, a mohlo by to na klik otevirat ucas mail gui? 
+
 ---
 
 agent ma mit svij adresar skill v projektu, tam si ma primarne delat nove skills

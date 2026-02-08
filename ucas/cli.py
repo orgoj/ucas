@@ -77,6 +77,8 @@ def parse_args(argv=None):
     send_parser = mail_subparsers.add_parser('send', help='Send mail')
     send_parser.add_argument('recipient', nargs='?', help='Recipient name (or ALL). Optional if --reply is used.')
     send_parser.add_argument('subject', nargs='?', help='Subject line. Optional if --reply is used.')
+    send_parser.add_argument('--to', help='Alias for recipient')
+    send_parser.add_argument('--subject', dest='subject_flag', help='Alias for subject')
     send_parser.add_argument('--body', help='Message body (optional, otherwise reads from stdin)')
     send_parser.add_argument('--reply', help='ID of message being replied to')
     
