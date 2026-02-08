@@ -6,6 +6,9 @@ allow-edit ../ucas-tests/**
 
 allow export UCAS_HOME=*
 
+allow ucas team *
+ask ucas team run *
+
 deny python3 -m ucas * "Ucas is sytem-wide installed use only `ucas ...`"
 deny python3 ucas-bin * "Ucas is sytem-wide installed use only `ucas ...`"
 deny ./ucas-bin * "Ucas is sytem-wide installed use only `ucas ...`"

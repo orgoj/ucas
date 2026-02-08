@@ -160,7 +160,7 @@ def build_command(
 
     cmd_parts = [executable]
     
-    # 1. System Prompt Override
+    # 1. System Prompt Override (PROMPT_SYSTEM.md)
     sys_override = get_merged_system_override(mod_paths, context)
     if not sys_override:
         # Default identity if no override
@@ -170,7 +170,7 @@ def build_command(
         cmd_parts.append(acli_def['system_prompt_arg'])
         cmd_parts.append(sys_override)
 
-    # 2. System Prompt Add (Append)
+    # 2. System Prompt Add (Append) (PROMT_SYSTEM_ADD.md or PROMPT_SYSTEM_ADD.md)
     sys_add = get_merged_system_add(mod_paths, context)
     if sys_add and 'system_prompt_add_arg' in acli_def:
         cmd_parts.append(acli_def['system_prompt_add_arg'])
@@ -292,12 +292,15 @@ def get_merged_system_override(mod_paths: List[Path], context: Dict[str, str]) -
 
 
 def get_merged_system_add(mod_paths: List[Path], context: Dict[str, str]) -> str:
-    """Concatenate PROMT_SYSTEM_ADD.md files from mods."""
+    """Concatenate PROMT_SYSTEM_ADD.md or PROMPT_SYSTEM_ADD.md files from mods."""
     parts = []
     for mod_path in mod_paths:
-        f = mod_path / 'PROMT_SYSTEM_ADD.md'
-        if f.exists():
-            parts.append(f.read_text())
+        # Check for both spellings (to be robust against typos)
+        for name in ['PROMT_SYSTEM_ADD.md', 'PROMPT_SYSTEM_ADD.md']:
+            f = mod_path / name
+            if f.exists():
+                parts.append(f.read_text())
+                break # Only use one if both exist in same mod
 
     if not parts:
         return ""

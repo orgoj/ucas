@@ -38,8 +38,11 @@ def _init_mails(merged_config: Dict[str, Any], team_members: List[str]):
     project_root = Path.cwd()
     mail._update_project_list(project_root)
     
-    # Create directories for all members
+    # Create directories for all members (only lowercase names allowed)
     for member in team_members:
+        if not member.islower():
+            continue
+            
         agent_mail_dir = project_root / ".ucas" / "mails" / member
         mail._ensure_mail_dirs(agent_mail_dir)
         
@@ -260,18 +263,30 @@ def _capture_pane(session: str, window: str, lines: int = 15) -> str:
 
 def show_status(args):
     """Show status of teams."""
-    project_root = Path.cwd()
+    # 1. Ensure we are in a UCAS project
+    project_root = mail._get_project_root()
+    if not (project_root / ".ucas").exists():
+        print(f"Error: Not in a UCAS project (no .ucas directory found in {project_root})", file=sys.stderr)
+        sys.exit(1)
+
     all_panes = _get_tmux_sessions()
     
-    # Filter by project?
     # UCAS run-tmux session name format: {project_root.name}-{team} or {project_root.name}
     prefix = project_root.name
     
-    # Identify relevant sessions
-    relevant_panes = [p for p in all_panes if p['session'].startswith(prefix)]
+    # Identify relevant sessions by checking the current path of the panes
+    # (Panes in run-tmux are started in the project root or agent notes dir)
+    project_root_str = str(project_root.resolve())
+    
+    relevant_panes = []
+    for p in all_panes:
+        pane_path = p['path']
+        # Path must be inside project_root
+        if pane_path == project_root_str or pane_path.startswith(project_root_str + os.sep):
+            relevant_panes.append(p)
     
     if not relevant_panes:
-        print(f"No active sessions found for project '{prefix}'.")
+        print(f"No active sessions found for project '{prefix}' at {project_root_str}.")
         return
 
     target = args.target # could be Team or Agent

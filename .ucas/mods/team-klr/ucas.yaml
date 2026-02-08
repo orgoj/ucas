@@ -1,0 +1,6 @@
+name: team-kr
+description: Team Karel a Rudolf
+team:
+  agents:
+    karel: [generic]
+    rudolf: [generic]

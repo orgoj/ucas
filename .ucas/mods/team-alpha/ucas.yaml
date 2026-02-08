@@ -1,6 +1,0 @@
-name: team-alpha
-description: Standard development team Alpha
-team:
-  agents:
-    karel: [basic-chat]
-    lucie: [basic-chat]
