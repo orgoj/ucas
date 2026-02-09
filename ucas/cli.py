@@ -82,6 +82,13 @@ def parse_args(argv=None):
     send_parser.add_argument('--body', help='Message body (optional, otherwise reads from stdin)')
     send_parser.add_argument('--reply', help='ID of message being replied to')
     
+    # install
+    install_parser = subparsers.add_parser('install', help='Install UCAS for current user')
+    install_parser.add_argument('--force', action='store_true', help='Reinstall even if already installed')
+    
+    # doctor
+    subparsers.add_parser('doctor', help='Check UCAS installation and configuration')
+    
     # run
     run_parser = subparsers.add_parser('run', help='Run an agent')
     run_parser.add_argument('agent', help='Agent name')
@@ -104,6 +111,24 @@ def parse_args(argv=None):
     # team stop
     team_stop = team_subparsers.add_parser('stop', help='Stop a team')
     team_stop.add_argument('team', nargs='?', help='Team name')
+
+    # init
+    init_parser = subparsers.add_parser('init', help='Initialize UCAS project')
+    init_parser.add_argument('--non-interactive', action='store_true', help='Non-interactive mode')
+
+    # list (projects)
+    list_parser = subparsers.add_parser('list', help='List projects')
+    list_parser.add_argument('--json', action='store_true', help='JSON output')
+    list_parser.add_argument('--running', action='store_true', help='Show only running projects')
+    list_parser.add_argument('--agents', action='store_true', help='Show team agents')
+
+    # term
+    term_parser = subparsers.add_parser('term', help='Open terminal in project')
+    term_parser.add_argument('project', help='Project alias or path')
+
+    # autostart
+    autostart_parser = subparsers.add_parser('autostart', help='Start projects by tags')
+    autostart_parser.add_argument('tags', nargs='+', help='Tags to match')
 
     # Ignorujeme známé globální flagy při parsování subpříkazů
     known_argv = [a for a in argv if a not in ('--dry-run', '--debug', '-v', '--verbose', '-q', '--quiet')]

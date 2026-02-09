@@ -1,2 +1,4 @@
 name: ucas-mail
 description: "Simple file-based mail system for UCAS agents"
+
+mails: true

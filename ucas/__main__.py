@@ -39,6 +39,26 @@ def main():
             ls_mods(args)
         elif args.command == 'mail':
             handle_mail(args)
+        elif args.command == 'install':
+            from . import installer
+            results = installer.run_install(force=args.force)
+            installer.print_install_results(results, verbose=settings.VERBOSE)
+        elif args.command == 'doctor':
+            from . import doctor
+            results = doctor.run_doctor()
+            doctor.print_doctor_results(results, verbose=settings.VERBOSE)
+        elif args.command == 'init':
+            from . import project
+            project.initialize_project(interactive=not args.non_interactive)
+        elif args.command == 'list':
+            from . import project
+            project.list_projects(json_output=args.json, running_only=args.running, show_agents=args.agents)
+        elif args.command == 'term':
+            from . import project
+            project.handle_term_command(args.project)
+        elif args.command == 'autostart':
+            from . import project
+            project.handle_autostart_command(args.tags)
         # Compatibility/Legacy commands removed from CLI parser but if they were there:
         # they are not in args.command anymore.
     except LaunchError as e:

@@ -2,6 +2,28 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## ⚠️ CRITICAL: Read-Only in Planning/Execution Mode
+
+When in **PLANNING** or **EXECUTION** mode (as indicated by the banner at the start), you can **ONLY** use read-only operations:
+
+**ALLOWED:**
+- `read` - Read file contents
+- `ls` - List directories
+- `grep` / `rg` - Search for patterns in files
+- `find` - Find files
+- Bash commands that are **strictly read-only** (e.g., `ls`, `grep`, `cat`)
+
+**FORBIDDEN:**
+- `write` - Create or overwrite files
+- `edit` - Modify file contents
+- `bash` with write commands (e.g., `touch`, `mkdir`, `rm`, `cp`, `mv`, `pip install`, `python -m ucas ...`)
+- Running UCAS commands that modify state (`ucas init`, `ucas team run`, etc.)
+
+**TESTING MUST BE ISOLATED:**
+- Any write/test operations MUST be done in `tests/` or `tmp/` directories
+- Never modify the source project during development
+- Use isolated environments for testing
+
 ## Project Overview
 
 UCAS (Universal CLI Agent System) is a vendor-agnostic agent orchestration system built on the KISS principle. It's an intelligent assembler that finds Agent/Mod/ACLI definitions, merges them via "Sandwich Merge", and executes them in tmux.

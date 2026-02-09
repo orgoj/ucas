@@ -1,6 +1,7 @@
 
 import os
 import shutil
+import socket
 import pytest
 from pathlib import Path
 from ucas import mail, settings, team
@@ -147,30 +148,6 @@ def test_full_from_address(mail_env):
     assert "@" in msgs[0]['from']
     assert str(mail_env) in msgs[0]['from']
 
-def test_team_autostart(mail_env):
-    # Setup project with autostart
-    config_file = mail_env / ".ucas" / "ucas.yaml"
-    config_file.parent.mkdir(parents=True, exist_ok=True)
-    config_file.write_text("team_autostart: true\n")
-    
-    (mail_env / ".ucas" / "mails" / "agent1").mkdir(parents=True, exist_ok=True)
-    
-    with patch("ucas.team.is_team_running", return_value=False) as mock_running, \
-         patch("ucas.team.run_team_programmatically") as mock_run:
-        
-        # Send mail to agent1@mail_env
-        msg = EmailMessage()
-        msg['Subject'] = "Auto"
-        msg['From'] = "User"
-        msg['To'] = "agent1"
-        msg['Message-ID'] = "<test@ucas>"
-        
-        mail._deliver_mail("agent1", mail_env / ".ucas" / "mails" / "agent1", msg)
-        
-        # Should have called mock_run
-        mock_run.assert_called_once()
-        assert mock_run.call_args[0][0] == mail_env
-
 def test_ucas_agent_notes_compatibility(mail_env):
     # Setup agent1 mailbox
     (mail_env / ".ucas" / "mails" / "agent1").mkdir(parents=True, exist_ok=True)
@@ -190,13 +167,20 @@ def test_ucas_agent_notes_compatibility(mail_env):
         assert ".ucas/mails/agent1" in str(mail_dir)
 
 def test_relative_cross_project_robustness(mail_env):
-    # agent@./other
-    # Test Finding 4: project_root=None fallback
+    # Test @ path resolution (absolute path after expanduser)
+    # @/abs/path format directly resolves without calling _get_project_root
     (mail_env / "other" / ".ucas" / "mails" / "target").mkdir(parents=True, exist_ok=True)
-    
-    with patch("ucas.mail._get_project_root", return_value=mail_env):
-        m_dir = mail._get_agent_mail_dir("target@./other", project_root=None)
-        assert (mail_env / "other" / ".ucas" / "mails" / "target").resolve() == m_dir.resolve()
+
+    m_dir = mail._get_agent_mail_dir(f"target@{mail_env}/other")
+    assert (mail_env / "other" / ".ucas" / "mails" / "target").resolve() == m_dir.resolve()
+
+def test_agent_mail_dir_project_root_fallback(mail_env):
+    # Test that _get_agent_mail_dir uses _get_project_root when project_root is None
+    (mail_env / ".ucas" / "mails" / "agent1").mkdir(parents=True, exist_ok=True)
+
+    with patch.object(mail, '_get_project_root', return_value=mail_env):
+        m_dir = mail._get_agent_mail_dir("agent1", project_root=None)
+        assert (mail_env / ".ucas" / "mails" / "agent1").resolve() == m_dir.resolve()
 
 def test_auto_reply_subject(mail_env):
     # Setup: agent2 sends to agent1

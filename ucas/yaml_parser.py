@@ -5,6 +5,7 @@ NO support for: multiline strings, anchors, tags, complex scalars.
 """
 
 import re
+from pathlib import Path
 from typing import Any, Dict, List, Union
 
 
@@ -405,3 +406,88 @@ class YAMLParser:
                 if i + 1 == len(text) or text[i+1] == ' ':
                     return True
         return False
+
+
+def load_yaml(filepath: str) -> Dict[str, Any]:
+    """Load YAML from file."""
+    with open(filepath, 'r', encoding='utf-8') as f:
+        content = f.read()
+    return parse_yaml(content)
+
+
+def save_yaml(filepath: str, data: Any) -> None:
+    """Save data as YAML to file."""
+    path = Path(filepath)
+    path.parent.mkdir(parents=True, exist_ok=True)
+
+    yaml_str = _to_yaml_string(data, 0)
+
+    with open(filepath, 'w', encoding='utf-8') as f:
+        f.write(yaml_str)
+
+
+def _to_yaml_string(data: Any, indent: int) -> str:
+    """Convert Python data to YAML string."""
+    if isinstance(data, dict):
+        return _dict_to_yaml(data, indent)
+    elif isinstance(data, list):
+        return _list_to_yaml(data, indent)
+    elif data is None:
+        return "null"
+    elif isinstance(data, bool):
+        return "true" if data else "false"
+    elif isinstance(data, (int, float)):
+        return str(data)
+    elif isinstance(data, str):
+        # Escape quotes and backslashes
+        escaped = data.replace('\\', '\\\\').replace('"', '\\"')
+        # Check if escaping is needed
+        if any(c in data for c in ['[', ']', '{', '}', ':', '\n', '\r', ' ', '\\', '"']):
+            return f'"{escaped}"'
+        return data
+    else:
+        return str(data)
+
+
+def _dict_to_yaml(d: Dict, indent: int) -> str:
+    """Convert dict to YAML string."""
+    if not d:
+        return ""
+
+    lines = []
+    prefix = " " * indent
+
+    for key, value in d.items():
+        if isinstance(value, dict):
+            lines.append(f"{prefix}{key}:")
+            lines.append(_dict_to_yaml(value, indent + 2))
+        elif isinstance(value, list):
+            lines.append(f"{prefix}{key}:")
+            lines.append(_list_to_yaml(value, indent + 2))
+        else:
+            lines.append(f"{prefix}{key}: {_to_yaml_string(value, 0)}")
+
+    return "\n".join(lines)
+
+
+def _list_to_yaml(lst: List, indent: int) -> str:
+    """Convert list to YAML string."""
+    if not lst:
+        return "[]"
+
+    lines = []
+    prefix = " " * indent
+    list_prefix = " " * (indent - 2) + "- "
+
+    for item in lst:
+        if isinstance(item, dict):
+            lines.append(f"{list_prefix}")
+            lines.append(_dict_to_yaml(item, indent + 2))
+        elif isinstance(item, list):
+            lines.append(f"{list_prefix}")
+            lines.append(_list_to_yaml(item, indent + 2))
+        else:
+            lines.append(f"{list_prefix}{_to_yaml_string(item, 0)}")
+
+    return "\n".join(lines)
+

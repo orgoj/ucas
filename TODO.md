@@ -1,6 +1,9 @@
 # UCAS Project Roadmap & TODO
 
-- definovatelny command kdyz USER prijde novy mail, do meho user config nastavit notify-send "ucas mail" "message3" -u normal, a mohlo by to na klik otevirat ucas mail gui? 
+---
+
+Implementace https://github.com/samSaffron/term-llm ?
+Ma to chat i agentni mod a definici agenta, jen u agenta nevidim skills.
 
 ---
 

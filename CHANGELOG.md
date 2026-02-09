@@ -2,6 +2,83 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.9.3] - 2026-02-09
+
+### Added
+- **Project Management System**: New comprehensive project tracking and management.
+  - `ucas init` - Initialize UCAS project in current directory
+    - Interactive prompts for description, gitignore strategy, editor
+    - Creates `.ucas/ucas.yaml` with default team and settings
+    - Registers project in `~/.ucas/projects.yaml`
+    - Supports re-init with upgrade/fix mode
+  - `ucas list` - List all registered projects
+    - Table output with ALIAS, PATH, DESCRIPTION, TAGS, TEAM columns
+    - `--json` flag for JSON output
+    - `--running` flag to show only projects with active teams
+    - `--agents` flag to show team members (independent of --running)
+  - `ucas term ALIAS|PATH` - Open system terminal in project
+    - Uses `xdg-terminal` (primary) or `x-terminal-emulator` (fallback)
+    - Supports both alias lookup and direct path resolution
+  - `ucas autostart TAG1 TAG2 ...` - Start teams in projects by tags
+    - Finds projects matching any of the specified tags
+    - Resolves team from tag object or defaults to DEFAULT
+    - Automatically updates `team_started` tracking
+
+### Changed
+- **Project Registry**: New `~/.ucas/projects.yaml` stores minimal alias→path mapping
+- **Project Metadata**: New `.ucas/ucas.yaml` fields:
+  - `description` - Human-readable project description
+  - `tags` - Project tags for categorization and autostart
+    - Supports simple tags and tag objects with team specification
+    - Example: `[{name: autostart, team: DEFAULT}]`
+  - `team_started` - Tracks last running team (NONE = not running)
+
+### Fixed
+- **YAML Parser**: Added proper escaping for quotes and backslashes in `save_yaml()`
+- **Team Tracking**: `ucas team run` now sets `team_started`, `ucas team stop` resets to NONE
+
+### Added to Documentation
+- **CONFIGURATION.md**: New "Project Management Configuration" section
+  - Project registry structure
+  - Project configuration keys (description, tags, team_started)
+  - Tags documentation (simple vs team-specified)
+  - Complete command reference for all new commands
+- **CLAUDE.md**: Added critical warning about read-only mode in planning/execution
+
+---
+
+## [0.9.3] - 2026-02-09
+
+### Added
+- **UCAS Installation**: New `ucas install` command sets up UCAS for current user.
+  - Creates `~/.ucas/` directory structure
+  - Sets up `mods/`, `mails/USER/`, `notes/` directories
+  - Generates `~/.ucas/ucas.yaml` with mail notification template
+  - Creates desktop entry at `~/.local/share/applications/ucas-mail.desktop` for clickable notifications
+- **UCAS Doctor**: New `ucas doctor` command checks installation status.
+  - Verifies Python version, hostname, installation directories
+  - Checks user configuration and mail notification setup
+  - Validates desktop entry status
+- **Mail Notifications**: User-configurable notifications for new mail.
+  - `mail.notifications.on_new_mail` in `~/.ucas/ucas.yaml` configures notification command
+  - Supports placeholders: `{subject}`, `{from}`, `{id}`, `{date}`
+  - Notifications only trigger for USER agent, not for other agents
+  - Compatible with `notify-send` and other desktop notification tools
+- **Message-ID with Hostname**: All outgoing emails now include hostname in Message-ID.
+  - Format: `<{mail_id}@ucas-{hostname}>`
+  - Ensures unique identifiers across multiple machines
+- **Enhanced Address Book**: Full `mail-addressbook` integration restored.
+  - Local agents from `.ucas/mails/` with descriptions from mod configs
+  - External contacts from `mail-addressbook` in merged configuration
+  - Mod descriptions override default "Local Agent" label
+
+### Changed
+- **Installers**: New modules `ucas/installer.py` and `ucas/doctor.py` for user setup and diagnostics.
+
+### Fixed
+- **Address Book Config Test**: Restored `get_address_book()` functionality with config reading.
+- **Agent Mail Dir Fallback**: Added test for `_get_agent_mail_dir()` with `project_root=None`.
+
 ## [0.9.2] - 2026-02-08
 
 ### Added

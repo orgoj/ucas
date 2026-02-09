@@ -58,13 +58,18 @@ def _init_mails(merged_config: Dict[str, Any], team_members: List[str]):
 
 def run_team(args):
     """Run a team of agents."""
+    # Import project module for team_started tracking
+    from . import project
+
     # 1. Resolve configuration layers
     (sys_cfg, _), (usr_cfg, _), (prj_cfg, _) = get_layer_config_paths()
     base_config = {}
     for layer_name, cfg in [('System', sys_cfg), ('User', usr_cfg), ('Project', prj_cfg)]:
         if cfg:
             base_config = _merge_dicts(base_config, load_config_file(cfg), settings.DEBUG, f"Base:{layer_name}")
-            
+
+    project_root = Path.cwd()
+
     extra_paths = base_config.get('mod_path', [])
     if isinstance(extra_paths, str): extra_paths = [extra_paths]
     search_paths = get_search_paths(extra_paths, base_config.get('strict', False))
@@ -159,15 +164,24 @@ def run_team(args):
         if team_def.get('sleep_seconds', 0) > 0 and idx < len(member_names)-1 and not settings.DRY_RUN:
             time.sleep(team_def['sleep_seconds'])
 
+    # Update team_started in project config
+    project.set_team_started(project_root, team_name)
+    if settings.VERBOSE:
+        print(f"[PROJECT] Set team_started = {team_name}")
+
 
 def stop_team(args):
     """Stop a team."""
+    from . import project
+
+    project_root = Path.cwd()
+
     (sys_cfg, _), (usr_cfg, _), (prj_cfg, _) = get_layer_config_paths()
     base_config = {}
     for layer_name, cfg in [('System', sys_cfg), ('User', usr_cfg), ('Project', prj_cfg)]:
         if cfg:
             base_config = _merge_dicts(base_config, load_config_file(cfg), settings.DEBUG, f"Base:{layer_name}")
-            
+
     extra_paths = base_config.get('mod_path', [])
     if isinstance(extra_paths, str): extra_paths = [extra_paths]
     search_paths = get_search_paths(extra_paths, base_config.get('strict', False))
@@ -199,8 +213,13 @@ def stop_team(args):
     if not run_def: raise LaunchError("No 'run' block found to stop")
     
     team_name = merged_config.get('team', {}).get('name') or args.team or project_root.name
-    
+
     stop_runner(run_def, prepare_context("stop", project_root, team_name))
+
+    # Update team_started to NONE
+    project.set_team_started(project_root, "NONE")
+    if settings.VERBOSE:
+        print(f"[PROJECT] Set team_started = NONE")
 
 
 def _get_tmux_sessions() -> List[Dict]:

@@ -17,6 +17,68 @@ Universal CLI Agent System is a tool for managing and launching AI agents and te
 ln -s $(pwd)/ucas-bin ~/bin/ucas
 ```
 
+### User Installation
+
+Run `ucas install` to set up UCAS for your user account:
+
+```bash
+ucas install
+```
+
+This creates:
+- `~/.ucas/` - Main UCAS directory structure
+- `~/.ucas/mods/` - User-specific mods
+- `~/.ucas/mails/USER/` - User mail storage (inbox/sent/read/archive)
+- `~/.ucas/ucas.yaml` - User configuration file
+- `~/.local/share/applications/ucas-mail.desktop` - Desktop entry for clickable notifications
+
+To reinstall:
+
+```bash
+ucas install --force
+```
+
+### Diagnostic
+
+Check your installation with `ucas doctor`:
+
+```bash
+ucas doctor
+```
+
+This verifies:
+- Python version compatibility
+- System hostname (for unique Message-IDs)
+- Installation directories
+- User configuration
+- Mail notification setup
+- Desktop entry status
+
+### Mail Notifications
+
+UCAS can show desktop notifications when you receive new mail. After running `ucas install`, edit `~/.ucas/ucas.yaml`:
+
+```yaml
+mail:
+  notifications:
+    on_new_mail: "notify-send 'UCAS Mail' '{subject} from {from}' -u normal"
+```
+
+Available placeholders:
+- `{subject}` - Email subject
+- `{from}` - Sender address
+- `{id}` - Message ID
+- `{date}` - Date string
+
+**Desktop entry requirement**: Clicking notifications requires `libnotify-bin` on Linux:
+
+```bash
+sudo apt install libnotify-bin  # Debian/Ubuntu
+sudo dnf install libnotify      # Fedora
+```
+
+**Message-ID format**: All outgoing emails use hostname in Message-ID: `<20260208-133023-5bb6@ucas-hostname>`
+
 ## Basic Usage
 
 ### List Available Mods
