@@ -58,6 +58,12 @@ def main():
             list_agents()
         elif args.command == 'list-teams':
             list_teams()
+        elif args.command == 'status':
+            from . import status_gui
+            refresh_ms = None
+            if hasattr(args, "auto_refresh") and args.auto_refresh:
+                refresh_ms = max(1, args.auto_refresh) * 1000
+            status_gui.run_status_gui(refresh_ms=refresh_ms)
         elif args.command == 'term':
             from . import project
             project.handle_term_command(args.project)

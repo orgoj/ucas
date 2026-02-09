@@ -128,6 +128,15 @@ def parse_args(argv=None):
     # list-teams
     subparsers.add_parser('list-teams', help='List discoverable teams')
 
+    # status
+    status_parser = subparsers.add_parser('status', help='Show UCAS status (GUI)')
+    status_parser.add_argument(
+        '--auto-refresh',
+        type=int,
+        default=0,
+        help='Auto refresh interval in seconds (0 = off)'
+    )
+
     # term
     term_parser = subparsers.add_parser('term', help='Open terminal in project')
     term_parser.add_argument('project', help='Project alias or path')
