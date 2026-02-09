@@ -122,6 +122,12 @@ def parse_args(argv=None):
     list_parser.add_argument('--running', action='store_true', help='Show only running projects')
     list_parser.add_argument('--agents', action='store_true', help='Show team agents')
 
+    # list-agents
+    subparsers.add_parser('list-agents', help='List discoverable agents')
+
+    # list-teams
+    subparsers.add_parser('list-teams', help='List discoverable teams')
+
     # term
     term_parser = subparsers.add_parser('term', help='Open terminal in project')
     term_parser.add_argument('project', help='Project alias or path')

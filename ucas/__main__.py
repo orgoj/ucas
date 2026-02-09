@@ -21,8 +21,9 @@ from .exceptions import LaunchError, MergerError
 # We might need resolve_entities if run_agent uses it from here?
 # run_agent uses prepare_and_run_member which is now in launcher.
 from .resolver import (
-    load_config, get_layer_config_paths, 
-    get_search_paths, load_config_file
+    load_config, get_layer_config_paths,
+    get_search_paths, load_config_file,
+    is_acli, is_run_mod
 )
 from .merger import merge_configs, collect_skills, _merge_dicts, resolve_entities
 
@@ -53,6 +54,10 @@ def main():
         elif args.command == 'list':
             from . import project
             project.list_projects(json_output=args.json, running_only=args.running, show_agents=args.agents)
+        elif args.command == 'list-agents':
+            list_agents()
+        elif args.command == 'list-teams':
+            list_teams()
         elif args.command == 'term':
             from . import project
             project.handle_term_command(args.project)
@@ -178,6 +183,81 @@ def ls_mods(args):
                 flag_tag = f"[{f}]"
                 print(f"{flag_tag} {n:20} - {d}" if d else f"{flag_tag} {n}")
         print()
+
+
+def _get_base_config(project_root: Path) -> Dict[str, Any]:
+    (sys_cfg, _), (usr_cfg, _), (prj_cfg, _) = get_layer_config_paths(project_root)
+    base_config: Dict[str, Any] = {}
+    for layer_name, cfg in [('System', sys_cfg), ('User', usr_cfg), ('Project', prj_cfg)]:
+        if cfg:
+            base_config = _merge_dicts(base_config, load_config_file(cfg), settings.DEBUG, f"Base:{layer_name}")
+    return base_config
+
+
+def _iter_entities(project_root: Path):
+    base_config = _get_base_config(project_root)
+    extra_paths = base_config.get('mod_path', [])
+    if isinstance(extra_paths, str):
+        extra_paths = [extra_paths]
+    search_paths = get_search_paths(extra_paths, base_config.get('strict', False), project_root=project_root)
+
+    seen = set()
+    for base_path in search_paths:
+        if not base_path.exists():
+            continue
+        for item in sorted(base_path.iterdir()):
+            if not item.is_dir():
+                continue
+            if item.name in seen:
+                continue
+            config_file = item / 'ucas.yaml'
+            if not config_file.exists():
+                continue
+            seen.add(item.name)
+            try:
+                cfg = load_config(item)
+            except Exception:
+                cfg = {}
+            yield item, cfg
+
+
+def _is_team_definition(cfg: Dict[str, Any]) -> bool:
+    if not isinstance(cfg, dict):
+        return False
+    if any(k.startswith('team') for k in cfg.keys()):
+        return True
+    return 'agents' in cfg or 'members' in cfg
+
+
+def list_agents() -> None:
+    project_root = Path.cwd()
+    items = []
+    for item, cfg in _iter_entities(project_root):
+        if is_acli(item) or is_run_mod(item) or _is_team_definition(cfg):
+            continue
+        items.append(item.name)
+
+    if not items:
+        print("No agents found.")
+        return
+
+    for name in sorted(items):
+        print(name)
+
+
+def list_teams() -> None:
+    project_root = Path.cwd()
+    items = []
+    for item, cfg in _iter_entities(project_root):
+        if _is_team_definition(cfg):
+            items.append(item.name)
+
+    if not items:
+        print("No teams found.")
+        return
+
+    for name in sorted(items):
+        print(name)
 
 
 if __name__ == '__main__':

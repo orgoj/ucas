@@ -26,24 +26,7 @@ The system must handle everything else automatically: find the default team, ins
 
 ---
 
-## Unified Architecture [COMPLETED]
-
-All is mod concept:
-- [x] team je definice v ucas.yaml v sekci teams (v projektu, u uživatele nebo v modu) (consolidated to mods/ directory)
-- [x] tmux spusteni je mod, ktere ma v yaml template por spusteni
-- [x] acli je mod zase neco specialmi
-- [x] nejaka obecna definice co mod umi - treba
-- [x] memory je mod a muzou byt ruzne reseni
-- [x] primarni memory agenta musi byt projektu
-  - [x] do jeho sdilene se nesmi dostat privatni veci z projektu
-- [x] mod musi mit moznost hook - ucas ma byt jen platforma co ty hook umozni
-  - [x] install
-  - [x] upgrade (conceptually supported via hooks, though upgrade command not yet implemented)
-  - [x] prerun
-  - [x] postrun
-  - [ ] clean?
-  - [ ] daily?
-  - [ ] mozna nejake podle typu klienta (conpact...)
+## Unified Architecture
 
 ## Analyze
 
@@ -57,19 +40,9 @@ All is mod concept:
 ## Tier 1: Core CLI Functionality
 These commands are essential for basic project management and introspection.
 
--   **`ucas init`**
-    -   **Action:** Create a `.ucas/` directory in the current project.
-    -   **Details:** Generate a minimal `ucas.yaml` configuration from a built-in template and create a default `main` team with a generic starter agent.
-
 -   **`ucas status`**
     -   **Action:** Display a comprehensive summary of the current UCAS environment.
     -   **Details:** Should report on the presence of a `.ucas` project directory, list discovered teams and agents, show the resolved `UCAS_HOME` path, and print the final, merged configuration for the project for debugging purposes.
-
--   **`ucas list-agents`**
-    -   **Action:** List all agents discoverable from the current project context (Project > User > System).
-
--   **`ucas list-teams`**
-    -   **Action:** List all teams discoverable from the current project context.
 
 ---
 
