@@ -194,7 +194,7 @@ def save_project_config(project_root: Path, config: Dict[str, Any]) -> None:
     config_file = ucas_dir / PROJECT_CONFIG_FILE
 
     try:
-        save_yaml(str(config_file), config_file)
+        save_yaml(str(config_file), config)
     except Exception as e:
         raise RuntimeError(f"Failed to save project config: {e}")
 

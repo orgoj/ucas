@@ -165,9 +165,10 @@ def run_team(args):
             time.sleep(team_def['sleep_seconds'])
 
     # Update team_started in project config
-    project.set_team_started(project_root, team_name)
-    if settings.VERBOSE:
-        print(f"[PROJECT] Set team_started = {team_name}")
+    if not settings.DRY_RUN:
+        project.set_team_started(project_root, team_name)
+        if settings.VERBOSE:
+            print(f"[PROJECT] Set team_started = {team_name}")
 
 
 def stop_team(args):
