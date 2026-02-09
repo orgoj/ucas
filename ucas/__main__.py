@@ -133,7 +133,8 @@ def run_agent(args):
     prepare_and_run_member(
         member_name=args.agent,
         agent_name=args.agent,
-        mods=args.mods or []
+        mods=args.mods or [],
+        project_root=Path.cwd()
     )
 
 

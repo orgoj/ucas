@@ -12,7 +12,7 @@ from typing import List, Dict, Any, Optional
 
 from . import settings
 from . import mail
-from .launcher import prepare_and_run_member, stop_runner, prepare_context
+from .launcher import prepare_and_run_member, stop_runner, prepare_context, select_run_mod
 from .exceptions import LaunchError
 from .merger import merge_configs, resolve_entities, _merge_dicts
 from .resolver import find_entity, load_config_file, get_layer_config_paths, get_search_paths, get_run_config
@@ -61,18 +61,18 @@ def run_team(args):
     # Import project module for team_started tracking
     from . import project
 
+    project_root = Path.cwd()
+
     # 1. Resolve configuration layers
-    (sys_cfg, _), (usr_cfg, _), (prj_cfg, _) = get_layer_config_paths()
+    (sys_cfg, _), (usr_cfg, _), (prj_cfg, _) = get_layer_config_paths(project_root)
     base_config = {}
     for layer_name, cfg in [('System', sys_cfg), ('User', usr_cfg), ('Project', prj_cfg)]:
         if cfg:
             base_config = _merge_dicts(base_config, load_config_file(cfg), settings.DEBUG, f"Base:{layer_name}")
 
-    project_root = Path.cwd()
-
     extra_paths = base_config.get('mod_path', [])
     if isinstance(extra_paths, str): extra_paths = [extra_paths]
-    search_paths = get_search_paths(extra_paths, base_config.get('strict', False))
+    search_paths = get_search_paths(extra_paths, base_config.get('strict', False), project_root=project_root)
 
     # 2. Resolve Mods (including Team Mod if specified)
     team_mod_paths = []
@@ -101,7 +101,6 @@ def run_team(args):
         _update_search_paths(search_paths, m_path)
 
     # 3. Perform Merge
-    project_root = Path.cwd()
     
     # Resolve default mods from base_config
     raw_default_mods = base_config.get('mods', [])
@@ -111,7 +110,7 @@ def run_team(args):
         p = find_entity(m_name, search_paths)
         if p: default_mod_paths.append(p)
 
-    merged_config = merge_configs(project_root, default_mod_paths, team_mod_paths)
+    merged_config = merge_configs(project_root, default_mod_paths, team_mod_paths, project_root=project_root)
     
     # 4. Extract Team Definition
     team_def = merged_config.get('team')
@@ -158,7 +157,8 @@ def run_team(args):
             member_name=name, agent_name=base, mods=effective_mods,
             prefix=f"[{name}] ",
             team_name=team_name, team_index=idx, team_size=len(member_names),
-            prompt=prompt or team_def.get('prompt'), model=model, provider=provider
+            prompt=prompt or team_def.get('prompt'), model=model, provider=provider,
+            project_root=project_root
         )
         
         if team_def.get('sleep_seconds', 0) > 0 and idx < len(member_names)-1 and not settings.DRY_RUN:
@@ -177,7 +177,7 @@ def stop_team(args):
 
     project_root = Path.cwd()
 
-    (sys_cfg, _), (usr_cfg, _), (prj_cfg, _) = get_layer_config_paths()
+    (sys_cfg, _), (usr_cfg, _), (prj_cfg, _) = get_layer_config_paths(project_root)
     base_config = {}
     for layer_name, cfg in [('System', sys_cfg), ('User', usr_cfg), ('Project', prj_cfg)]:
         if cfg:
@@ -185,7 +185,7 @@ def stop_team(args):
 
     extra_paths = base_config.get('mod_path', [])
     if isinstance(extra_paths, str): extra_paths = [extra_paths]
-    search_paths = get_search_paths(extra_paths, base_config.get('strict', False))
+    search_paths = get_search_paths(extra_paths, base_config.get('strict', False), project_root=project_root)
 
     team_mod_paths = []
     if args.team:
@@ -199,23 +199,24 @@ def stop_team(args):
     # team_stop.add_argument('team', ...)
     # NO MODS argument for stop in new CLI design.
     
-    project_root = Path.cwd()
-    merged_config = merge_configs(project_root, [], team_mod_paths)
+    merged_config = merge_configs(project_root, [], team_mod_paths, project_root=project_root)
     
     run_def = get_run_config(merged_config)
     
     if not run_def:
-        def_run = merged_config.get('default_run') or base_config.get('default_run') or 'run-tmux'
-        run_path = find_entity(def_run, search_paths)
-        if run_path:
-             merged_config = merge_configs(project_root, [], team_mod_paths + [run_path])
-             run_def = get_run_config(merged_config)
+        run_name = select_run_mod(merged_config)
+        if run_name:
+            run_path = find_entity(run_name, search_paths)
+            if not run_path:
+                raise LaunchError(f"Run mod '{run_name}' not found")
+            merged_config = merge_configs(project_root, [], team_mod_paths + [run_path], project_root=project_root)
+            run_def = get_run_config(merged_config)
 
     if not run_def: raise LaunchError("No 'run' block found to stop")
     
     team_name = merged_config.get('team', {}).get('name') or args.team or project_root.name
 
-    stop_runner(run_def, prepare_context("stop", project_root, team_name))
+    stop_runner(run_def, prepare_context("stop", project_root, team_name, project_root=project_root))
 
     # Update team_started to NONE
     project.set_team_started(project_root, "NONE")

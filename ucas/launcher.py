@@ -11,7 +11,7 @@ import os
 import sys
 import time
 from pathlib import Path
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Tuple
 from datetime import datetime
 
 
@@ -25,17 +25,20 @@ from .exceptions import LaunchError
 
 
 def prepare_context(
-    agent_name: str, 
-    agent_path: Path, 
+    agent_name: str,
+    agent_path: Path,
     team_name: Optional[str] = None,
     team_index: int = 0,
-    team_size: int = 1
+    team_size: int = 1,
+    project_root: Optional[Path] = None
 ) -> Dict[str, str]:
     """
     Prepare environment variables for mod execution.
     Creates UCAS_AGENT_NOTES directory.
     """
-    project_root = Path.cwd().resolve()
+    if project_root is None:
+        project_root = Path.cwd()
+    project_root = project_root.resolve()
     notes_dir = project_root / '.ucas' / 'notes' / agent_name
     notes_dir.mkdir(parents=True, exist_ok=True)
 
@@ -424,7 +427,7 @@ def expand_run_template(template: str, cmd: str, member_name: str, context: Dict
     return os.path.expandvars(res)
 
 
-def select_run_mod(merged_config: Dict[str, Any]) -> str:
+def select_run_mod(merged_config: Dict[str, Any]) -> Optional[str]:
     """Select the run mod to use based on configuration."""
     # 1. Direct 'run' block that is a full definition
     run_def = merged_config.get('run')
@@ -443,8 +446,31 @@ def select_run_mod(merged_config: Dict[str, Any]) -> str:
     allowed = merged_config.get('allowed_run', [])
     if allowed:
         return allowed[0]
-    
-    return 'run-tmux'  # Hardcoded default fallback
+
+    return None
+
+
+def _resolve_and_merge(
+    agent_name: str,
+    mods: List[str],
+    project_root: Optional[Path]
+) -> Tuple[Path, List[Path], List[Path], Dict[str, Any], List[Path], Dict[str, Any]]:
+    """Resolve entities and perform the initial sandwich merge."""
+    agent_path, explicit_mod_paths, search_paths, base_config = resolve_entities(
+        agent_name, mods, project_root=project_root
+    )
+
+    raw_default_mods = base_config.get('mods', [])
+    default_mod_names = raw_default_mods if isinstance(raw_default_mods, list) else [raw_default_mods]
+
+    default_mod_paths = []
+    for m_name in default_mod_names:
+        p = find_entity(m_name, search_paths)
+        if p:
+            default_mod_paths.append(p)
+
+    merged_config = merge_configs(agent_path, default_mod_paths, explicit_mod_paths, project_root=project_root)
+    return agent_path, explicit_mod_paths, search_paths, base_config, default_mod_paths, merged_config
 
 
 def prepare_and_run_member(
@@ -457,25 +483,13 @@ def prepare_and_run_member(
     team_size: int = 1,
     prompt: str = None,
     model: str = None,
-    provider: str = None
+    provider: str = None,
+    project_root: Optional[Path] = None
 ) -> None:
     """Prepare and run a single agent member."""
-    # 1. First resolution to get search paths and base_config
-    agent_path, explicit_mod_paths, search_paths, base_config = resolve_entities(agent_name, mods)
-    
-    # 2. Identify default mods from base_config
-    raw_default_mods = base_config.get('mods', [])
-    default_mod_names = raw_default_mods if isinstance(raw_default_mods, list) else [raw_default_mods]
-    
-    # 3. Resolve default mod paths
-    default_mod_paths = []
-    for m_name in default_mod_names:
-        p = find_entity(m_name, search_paths)
-        if p: default_mod_paths.append(p)
-
-    # 4. Perform sandwich merge with correct priorities:
-    # System -> Default Mods -> Agent -> Explicit Mods -> Overrides
-    merged_config = merge_configs(agent_path, default_mod_paths, explicit_mod_paths)
+    agent_path, explicit_mod_paths, search_paths, base_config, default_mod_paths, merged_config = (
+        _resolve_and_merge(agent_name, mods, project_root)
+    )
     
     # 5. Add default ACLI if missing (look up again if needed)
     acli_def = get_acli_config(merged_config)
@@ -485,21 +499,35 @@ def prepare_and_run_member(
             acli_path = find_entity(def_acli, search_paths)
             if acli_path:
                 explicit_mod_paths.append(acli_path)
-                merged_config = merge_configs(agent_path, default_mod_paths, explicit_mod_paths)
+                merged_config = merge_configs(agent_path, default_mod_paths, explicit_mod_paths, project_root=project_root)
 
     # 6. Add default RUN if missing
     run_def = get_run_config(merged_config)
     if not run_def:
-        def_run = merged_config.get('default_run') or base_config.get('default_run') or 'run-tmux'
-        run_path = find_entity(def_run, search_paths)
-        if run_path:
+        run_name = select_run_mod(merged_config)
+        if run_name:
+            run_path = find_entity(run_name, search_paths)
+            if not run_path:
+                raise LaunchError(f"Run mod '{run_name}' not found")
             explicit_mod_paths.append(run_path)
-            merged_config = merge_configs(agent_path, default_mod_paths, explicit_mod_paths)
+            merged_config = merge_configs(agent_path, default_mod_paths, explicit_mod_paths, project_root=project_root)
+        else:
+            raise LaunchError(
+                "No run configuration found. Add a run mod to mods+, set default_run/allowed_run, "
+                "or provide a 'run' block in config."
+            )
 
     if model: merged_config['requested_model'] = model
     if provider: merged_config['requested_provider'] = provider
 
-    context = prepare_context(member_name, agent_path, team_name, team_index, team_size)
+    context = prepare_context(
+        member_name,
+        agent_path,
+        team_name,
+        team_index,
+        team_size,
+        project_root=project_root
+    )
     
     env_config = merged_config.get('env', {})
     for k, v in env_config.items():

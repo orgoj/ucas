@@ -9,7 +9,11 @@ from typing import Optional, Tuple, List, Dict, Any
 from .yaml_parser import parse_yaml
 
 
-def get_search_paths(extra_paths: Optional[List[str]] = None, strict: bool = False) -> List[Path]:
+def get_search_paths(
+    extra_paths: Optional[List[str]] = None,
+    strict: bool = False,
+    project_root: Optional[Path] = None
+) -> List[Path]:
     """
     Get search paths in order: 
     1. Project default: ./.ucas/mods/
@@ -20,7 +24,9 @@ def get_search_paths(extra_paths: Optional[List[str]] = None, strict: bool = Fal
     paths = []
 
     # 1. Project layer: ./.ucas/mods/ (ALWAYS FIRST)
-    project_path = Path.cwd() / '.ucas' / 'mods'
+    if project_root is None:
+        project_root = Path.cwd()
+    project_path = project_root / '.ucas' / 'mods'
     if project_path.exists():
         paths.append(project_path)
 
@@ -30,7 +36,7 @@ def get_search_paths(extra_paths: Optional[List[str]] = None, strict: bool = Fal
             path = Path(p)
             if not path.is_absolute():
                 # Relative to CWD (Project Root)
-                path = Path.cwd() / path
+                path = project_root / path
             if path.exists() and path.is_dir():
                 if path not in paths:
                     paths.append(path)
@@ -170,7 +176,7 @@ def load_config(entity_path: Path) -> dict:
     return load_config_file(entity_path / 'ucas.yaml')
 
 
-def get_layer_config_paths() -> Tuple[Optional[Path], Optional[Path], Optional[Path]]:
+def get_layer_config_paths(project_root: Optional[Path] = None) -> Tuple[Optional[Path], Optional[Path], Optional[Path]]:
     """
     Get paths to layer config files (ucas.yaml and ucas-override.yaml).
     Returns: (system_paths, user_paths, project_paths)
@@ -208,7 +214,9 @@ def get_layer_config_paths() -> Tuple[Optional[Path], Optional[Path], Optional[P
         user_override = uo
 
     # Project layer
-    project_base = Path.cwd() / '.ucas'
+    if project_root is None:
+        project_root = Path.cwd()
+    project_base = project_root / '.ucas'
     pc = project_base / 'ucas.yaml'
     if pc.exists():
         project_config = pc

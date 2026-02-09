@@ -14,7 +14,8 @@ from .resolver import get_layer_config_paths, load_config_file, get_search_paths
 def merge_configs(
     agent_path: Path,
     default_mod_paths: List[Path],
-    explicit_mod_paths: List[Path]
+    explicit_mod_paths: List[Path],
+    project_root: Optional[Path] = None
 ) -> Dict[str, Any]:
     """
     Perform multi-layer sandwich merge with correct priorities.
@@ -22,7 +23,7 @@ def merge_configs(
     result = {}
 
     # Get layer config paths
-    (sys_cfg, sys_ovr), (usr_cfg, usr_ovr), (prj_cfg, prj_ovr) = get_layer_config_paths()
+    (sys_cfg, sys_ovr), (usr_cfg, usr_ovr), (prj_cfg, prj_ovr) = get_layer_config_paths(project_root)
 
     # 1. Base configs (System -> User -> Project)
     base_layers = []
@@ -155,9 +156,14 @@ def collect_skills(agent_path: Path, mod_paths: List[Path]) -> List[Path]:
 # MergerError is now in .exceptions
 
 
-def resolve_entities(agent_name: str, mods: List[str]) -> Tuple[Path, List[Path], List[Path], Dict[str, Any]]:
+def resolve_entities(
+    agent_name: str,
+    mods: List[str],
+    project_root: Optional[Path] = None,
+    debug: Optional[bool] = None
+) -> Tuple[Path, List[Path], List[Path], Dict[str, Any]]:
     """Resolve agent and mods with dynamic search path expansion."""
-    (sys_cfg, _), (usr_cfg, _), (prj_cfg, _) = get_layer_config_paths()
+    (sys_cfg, _), (usr_cfg, _), (prj_cfg, _) = get_layer_config_paths(project_root)
     base_config = {}
     
     for layer_name, cfg in [('System', sys_cfg), ('User', usr_cfg), ('Project', prj_cfg)]:
@@ -167,7 +173,7 @@ def resolve_entities(agent_name: str, mods: List[str]) -> Tuple[Path, List[Path]
     extra_paths = base_config.get('mod_path', [])
     if isinstance(extra_paths, str): extra_paths = [extra_paths]
     
-    search_paths = get_search_paths(extra_paths, base_config.get('strict', False))
+    search_paths = get_search_paths(extra_paths, base_config.get('strict', False), project_root=project_root)
     
     # 1. Resolve Agent
     agent_path = find_entity(agent_name, search_paths)

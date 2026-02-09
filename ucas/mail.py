@@ -370,7 +370,7 @@ def _get_mail_config() -> Dict[str, Any]:
     """Get merged mail configuration from all layers."""
     try:
         project_root = _get_project_root()
-        merged = merge_configs(project_root, [], [])
+        merged = merge_configs(project_root, [], [], project_root=project_root)
         return merged.get('mail', {})
     except Exception:
         return {}
